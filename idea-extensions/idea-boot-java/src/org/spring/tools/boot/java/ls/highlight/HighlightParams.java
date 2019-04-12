@@ -8,10 +8,9 @@
  * Contributors:
  *     Pivotal, Inc. - initial API and implementation
  *******************************************************************************/
-package org.spring.tools.boot.java.ls;
+package org.spring.tools.boot.java.ls.highlight;
 
 import java.util.List;
-
 import org.eclipse.lsp4j.CodeLens;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 

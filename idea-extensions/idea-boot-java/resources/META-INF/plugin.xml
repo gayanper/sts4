@@ -16,20 +16,29 @@
   </change-notes>
 
   <!-- please see https://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
-  <idea-version since-build="" until-build=""/>
+  <idea-version/>
 
   <!-- please see https://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
        on how to target different products -->
   <depends>com.intellij.modules.lang</depends>
-  <depends>com.github.gtache.lsp</depends>
 
   <extensions defaultExtensionNs="com.intellij">
     <!-- Add your extensions here -->
-    <preloadingActivity implementation="org.spring.tools.boot.java.ls.BootJavaPreloadingActivity" id="org.spring.tools.boot.java.ls.BootJavaPreloadingActivity" />
-    <!--<lang.documentationProvider implementationClass="com.github.gtache.lsp.contributors.LSPDocumentationProvider"-->
-                                <!--id="LSPDocumentationProviderJava" language="JAVA"/>-->
-
+    <preloadingActivity implementation="org.spring.tools.boot.java.ls.StsPreloadingActivity"
+      id="org.spring.tools.boot.java.ls.StsPreloadingActivity"/>
+    <completion.contributor
+      implementationClass="org.wso2.lsp4intellij.contributors.LSPCompletionContributor"
+      id="LSPCompletionContributor" language="any"/>
+    <gotoSymbolContributor
+      implementation="org.wso2.lsp4intellij.contributors.symbol.LSPSymbolContributor"
+      id="LSPSymbolContributor"/>
   </extensions>
+
+  <application-components>
+    <component>
+      <implementation-class>org.wso2.lsp4intellij.IntellijLanguageClient</implementation-class>
+    </component>
+  </application-components>
 
   <actions>
     <!-- Add your actions here -->
