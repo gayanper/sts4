@@ -4,15 +4,15 @@ plugins {
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 intellij {
-    version '2018.3'
-    plugins = ['IntelliLang', 'com.github.gtache.lsp:1.5.4']
+    //version '2018.3'
+    plugins = ['IntelliLang']
     pluginName 'idea-boot-java'
     downloadSources = false
-    // if you want run with your IDEA installation
-    //localPath '/opt/ideaIC-2018'
+    localPath '/opt/ideaIC-2018'
 }
 
 patchPluginXml {
@@ -21,18 +21,13 @@ patchPluginXml {
 }
 
 dependencies {
-    compile 'org.scala-lang:scala-compiler:2.12.7'
-    compile 'org.scala-lang:scala-library:2.12.7'
+    compile 'org.wso2.lsp4intellij:lsp4intellij:8.0.1-SNAPSHOT'
 }
 
-apply plugin: 'scala'
 sourceSets {
     main {
-        scala {
-            srcDirs = ['src']
-        }
         java {
-            srcDirs = []
+            srcDirs = ['src']
         }
         resources {
             srcDirs = ['resources']
