@@ -11,17 +11,19 @@ import org.spring.tools.boot.java.ls.highlight.HighlightParams;
 import org.spring.tools.boot.java.ls.highlight.HighlightProcessor;
 import org.spring.tools.boot.java.ls.highlight.InlayHighlightProcessor;
 import org.spring.tools.boot.java.ls.highlight.RangeHighlightProcessor;
-import org.wso2.lsp4intellij.client.LanguageClientImpl;
+import org.wso2.lsp4intellij.client.ClientContext;
+import org.wso2.lsp4intellij.client.DefaultLanguageClient;
 import org.wso2.lsp4intellij.editor.EditorEventManager;
 import org.wso2.lsp4intellij.utils.FileUtils;
 
-class StsLanuageClient extends LanguageClientImpl {
+class StsLanuageClient extends DefaultLanguageClient {
 
     private static final Logger LOGGER = Logger.getInstance(StsLanuageClient.class);
 
     private List<HighlightProcessor> processors;
 
-    public StsLanuageClient() {
+    public StsLanuageClient(ClientContext clientContext) {
+        super(clientContext);
         processors = ImmutableList.of(new RangeHighlightProcessor(), new InlayHighlightProcessor());
     }
 

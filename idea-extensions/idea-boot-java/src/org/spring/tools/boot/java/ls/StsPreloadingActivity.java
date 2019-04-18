@@ -29,6 +29,7 @@ public class StsPreloadingActivity extends PreloadingActivity {
         IntellijLanguageClient.addServerDefinition(
             StsServiceDefinitionBuilder.forLanguage(LANG_ID_JAVA).withExtension("java")
                 .withServerListener().build());
+        IntellijLanguageClient.addExtensionManager("java", new StsLspExtensionManager());
 
         IntellijLanguageClient.addServerDefinition(
             StsServiceDefinitionBuilder.forLanguage(LANG_ID_PROPERTIES)
