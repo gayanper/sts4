@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import org.jetbrains.annotations.NotNull;
 import org.wso2.lsp4intellij.IntellijLanguageClient;
+import org.wso2.lsp4intellij.requests.Timeouts;
 
 public class StsPreloadingActivity extends PreloadingActivity {
 
@@ -25,6 +26,8 @@ public class StsPreloadingActivity extends PreloadingActivity {
             LOGGER.error("Unsupported java version, 1.8 or above is required");
             return;
         }
+
+        IntellijLanguageClient.setTimeout(Timeouts.INIT, 60000);
 
         IntellijLanguageClient.addServerDefinition(
             StsServiceDefinitionBuilder.forLanguage(LANG_ID_JAVA).withExtension("java")
