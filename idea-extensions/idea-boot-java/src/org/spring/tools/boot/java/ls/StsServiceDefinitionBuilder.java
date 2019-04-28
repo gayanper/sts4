@@ -1,32 +1,36 @@
 package org.spring.tools.boot.java.ls;
 
 import com.intellij.openapi.diagnostic.Logger;
+import org.wso2.lsp4intellij.client.languageserver.serverdefinition.RawCommandServerDefinition;
+
 import java.io.File;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import org.wso2.lsp4intellij.client.languageserver.serverdefinition.RawCommandServerDefinition;
+import java.util.HashMap;
+import java.util.Map;
 
 public final class StsServiceDefinitionBuilder {
 
     private static final Logger LOGGER = Logger.getInstance(StsServiceDefinitionBuilder.class);
     public static final String LAUNCHER = "org.springframework.boot.loader.JarLauncher";
 
-    private String extension;
+    private String extensions;
     private String langId;
     private boolean serverListenerEnabled = false;
+    private Map<String, String> langIds = new HashMap<>();
 
-    private StsServiceDefinitionBuilder(String langId) {
-        this.langId = langId;
+    private StsServiceDefinitionBuilder(String extensions) {
+        this.extensions = extensions;
     }
 
-    public static StsServiceDefinitionBuilder forLanguage(String langId) {
-        return new StsServiceDefinitionBuilder(langId);
+    public static StsServiceDefinitionBuilder forExtensions(String extensions) {
+        return new StsServiceDefinitionBuilder(extensions);
     }
 
-    public StsServiceDefinitionBuilder withExtension(String extension) {
-        this.extension = extension;
+    public StsServiceDefinitionBuilder withLanguageMapping(String extension, String languageId) {
+        langIds.put(extension, languageId);
         return this;
     }
 
@@ -60,12 +64,12 @@ public final class StsServiceDefinitionBuilder {
                 .toString();
 
             if (serverListenerEnabled) {
-                return new StsListenableServerDefinition(extension,
-                    langId,
+                return new StsListenableServerDefinition(extensions,
+                        langIds,
                     new String[]{javaExePath, "-classpath", classPathBuilder.toString(), LAUNCHER});
             } else {
-                return new StsServerDefinition(extension,
-                    langId,
+                return new StsServerDefinition(extensions,
+                        langIds,
                     new String[]{javaExePath, "-classpath", classPathBuilder.toString(), LAUNCHER});
             }
 

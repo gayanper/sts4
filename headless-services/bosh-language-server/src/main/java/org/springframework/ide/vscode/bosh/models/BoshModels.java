@@ -33,8 +33,8 @@ public class BoshModels {
 			this.releasesProvider = releasesProvider;
 			this.astTypes = astTypes;
 	}
-
 	public String getTypeTag(DynamicSchemaContext dc) {
+
 		YamlFileAST ast = asts.getSafeAst(dc.getDocument(), true);
 		if (ast!=null) {
 			return NodeUtil.asScalar(dc.getPath().thenValAt("type").traverseToNode(ast));

@@ -32,6 +32,9 @@
     <gotoSymbolContributor
       implementation="org.wso2.lsp4intellij.contributors.symbol.LSPSymbolContributor"
       id="LSPSymbolContributor"/>
+    <inspectionToolProvider
+            implementation="org.wso2.lsp4intellij.contributors.inspection.LSPInspectionToolProvider"
+            id="LSPInspectionToolProvider"/>
   </extensions>
 
   <application-components>

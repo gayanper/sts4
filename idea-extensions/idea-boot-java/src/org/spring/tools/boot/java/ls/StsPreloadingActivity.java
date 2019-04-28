@@ -12,7 +12,6 @@ public class StsPreloadingActivity extends PreloadingActivity {
 
     private static final Logger LOGGER = Logger.getInstance(StsPreloadingActivity.class);
     public static final String LANG_ID_JAVA = "java";
-    public static final String LANG_ID_XML = "xml";
     public static final String LANG_ID_PROPERTIES = "spring-boot-properties";
     public static final String LANG_ID_YAML = "spring-boot-properties-yaml";
 
@@ -31,21 +30,13 @@ public class StsPreloadingActivity extends PreloadingActivity {
         IntellijLanguageClient.setTimeout(Timeouts.INIT, 60000);
 
         IntellijLanguageClient.addServerDefinition(
-            StsServiceDefinitionBuilder.forLanguage(LANG_ID_JAVA).withExtension("java")
-                .withServerListener().build());
+                StsServiceDefinitionBuilder.forExtensions("java,application.*\\.yaml,application.*\\.yml,.*[Cc]ontext.*\\.xml,application.*\\.properties")
+                        .withLanguageMapping("java", LANG_ID_JAVA)
+                        .withLanguageMapping("yaml", LANG_ID_YAML)
+                        .withLanguageMapping("yml", LANG_ID_YAML)
+                        .withLanguageMapping("xml", LANG_ID_XML)
+                        .withLanguageMapping("properties", LANG_ID_PROPERTIES)
+                        .withServerListener().build());
         IntellijLanguageClient.addExtensionManager("java", new StsLspExtensionManager());
-
-        IntellijLanguageClient.addServerDefinition(
-            StsServiceDefinitionBuilder.forLanguage(LANG_ID_XML)
-                .withExtension(".*[Cc]ontext.*\\.xml")
-                .withServerListener().build());
-
-        IntellijLanguageClient.addServerDefinition(
-            StsServiceDefinitionBuilder.forLanguage(LANG_ID_PROPERTIES)
-                .withExtension("application.*\\.properties").build());
-
-        IntellijLanguageClient.addServerDefinition(
-            StsServiceDefinitionBuilder.forLanguage(LANG_ID_YAML)
-                .withExtension("application.*\\.yaml,application.*\\.yml").build());
     }
 }
