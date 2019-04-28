@@ -12,6 +12,7 @@ public class StsPreloadingActivity extends PreloadingActivity {
 
     private static final Logger LOGGER = Logger.getInstance(StsPreloadingActivity.class);
     public static final String LANG_ID_JAVA = "java";
+    public static final String LANG_ID_XML = "xml";
     public static final String LANG_ID_PROPERTIES = "spring-boot-properties";
     public static final String LANG_ID_YAML = "spring-boot-properties-yaml";
 
@@ -35,8 +36,9 @@ public class StsPreloadingActivity extends PreloadingActivity {
         IntellijLanguageClient.addExtensionManager("java", new StsLspExtensionManager());
 
         IntellijLanguageClient.addServerDefinition(
-            StsServiceDefinitionBuilder.forLanguage(LANG_ID_PROPERTIES)
-                .withExtension("application*.properties").build());
+            StsServiceDefinitionBuilder.forLanguage(LANG_ID_XML)
+                .withExtension(".*[Cc]ontext.*\\.xml")
+                .withServerListener().build());
 
         IntellijLanguageClient.addServerDefinition(
             StsServiceDefinitionBuilder.forLanguage(LANG_ID_PROPERTIES)

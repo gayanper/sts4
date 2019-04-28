@@ -13,7 +13,7 @@ class StsServerListener implements ServerListener {
     private static final Logger LOGGER = Logger.getInstance(StsServerListener.class);
 
     @Override
-    public void initilize(@NotNull LanguageServer server, @NotNull InitializeResult result) {
+    public void initialize(@NotNull LanguageServer server, @NotNull InitializeResult result) {
         ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, String>>> configJsonObject = ImmutableMap
             .of("boot-java",
                 ImmutableMap.of("support-spring-xml-config", ImmutableMap.of("on", "true")));
