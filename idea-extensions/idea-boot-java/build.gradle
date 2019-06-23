@@ -36,12 +36,17 @@ sourceSets {
 }
 
 prepareSandbox.doLast {
-    def pluginServerDir = "${intellij.sandboxDirectory}/plugins/idea-boot-java/lib/server"
+    def pluginServerDir = "${intellij.sandboxDirectory}/plugins/idea-boot-java/lib/server/language-server.jar"
 
     mkdir(pluginServerDir)
     copy {
         from("$project.projectDir/server/language-server.jar")
         into(pluginServerDir)
     }
+}
+
+publishPlugin.doFirst {
+    def pluginServerDir = "${intellij.sandboxDirectory}/plugins/idea-boot-java/lib/server/language-server.jar"
+    delete(pluginServerDir)    
 }
 

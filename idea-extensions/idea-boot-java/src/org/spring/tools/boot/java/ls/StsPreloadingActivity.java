@@ -12,6 +12,7 @@ public class StsPreloadingActivity extends PreloadingActivity {
 
     private static final Logger LOGGER = Logger.getInstance(StsPreloadingActivity.class);
     public static final String LANG_ID_JAVA = "java";
+    public static final String LANG_ID_XML = "xml";
     public static final String LANG_ID_PROPERTIES = "spring-boot-properties";
     public static final String LANG_ID_YAML = "spring-boot-properties-yaml";
 

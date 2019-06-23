@@ -32,9 +32,10 @@
     <gotoSymbolContributor
       implementation="org.wso2.lsp4intellij.contributors.symbol.LSPSymbolContributor"
       id="LSPSymbolContributor"/>
-    <inspectionToolProvider
-            implementation="org.wso2.lsp4intellij.contributors.inspection.LSPInspectionToolProvider"
-            id="LSPInspectionToolProvider"/>
+    <externalAnnotator id="LSPAnnotator"
+      implementationClass="org.wso2.lsp4intellij.contributors.annotator.LSPAnnotator" language="Properties"/>
+    <externalAnnotator id="LSPAnnotator"
+      implementationClass="org.wso2.lsp4intellij.contributors.annotator.LSPAnnotator" language="yaml"/>
   </extensions>
 
   <application-components>
