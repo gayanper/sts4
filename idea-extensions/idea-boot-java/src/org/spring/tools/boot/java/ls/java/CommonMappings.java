@@ -1,15 +1,14 @@
 package org.spring.tools.boot.java.ls.java;
 
 import com.intellij.openapi.vfs.VirtualFile;
+import org.springframework.ide.vscode.commons.protocol.java.Classpath.CPE;
 
 import java.util.function.Function;
 
 public class CommonMappings {
 
     public static CPE toBinaryCPE(VirtualFile file) {
-        CPE cpe = CPE.binary();
-        cpe.setPath(file.getPath());
-        return cpe;
+        return CPE.binary(file.getPath());
     }
 
     public static String firstOrEmpty(VirtualFile[] files, Function<VirtualFile, String> transformer) {

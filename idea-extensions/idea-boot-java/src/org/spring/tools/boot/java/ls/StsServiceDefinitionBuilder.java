@@ -66,11 +66,13 @@ public final class StsServiceDefinitionBuilder {
             if (serverListenerEnabled) {
                 return new StsListenableServerDefinition(extensions,
                         langIds,
-                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(), LAUNCHER});
+                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(), LAUNCHER,
+                            "-Danguageserver.boot.enable-jandex-index=true"});
             } else {
                 return new StsServerDefinition(extensions,
                         langIds,
-                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(), LAUNCHER});
+                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(), LAUNCHER,
+                            "-Danguageserver.boot.enable-jandex-index=true"});
             }
 
         } catch (URISyntaxException e) {

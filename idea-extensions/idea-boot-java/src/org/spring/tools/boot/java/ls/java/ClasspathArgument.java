@@ -1,5 +1,7 @@
 package org.spring.tools.boot.java.ls.java;
 
+import org.springframework.ide.vscode.commons.protocol.java.Classpath;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

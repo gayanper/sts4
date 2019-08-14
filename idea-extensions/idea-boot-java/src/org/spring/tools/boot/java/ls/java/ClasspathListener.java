@@ -5,23 +5,19 @@ import com.intellij.ProjectTopics;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.ModuleRootEvent;
-import com.intellij.openapi.roots.ModuleRootListener;
-import com.intellij.openapi.roots.ModuleRootManager;
-import com.intellij.openapi.roots.OrderRootType;
-import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.roots.*;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.messages.MessageBusConnection;
 import org.apache.commons.collections.CollectionUtils;
 import org.eclipse.lsp4j.ExecuteCommandParams;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.ide.vscode.commons.protocol.java.ClasspathListenerParams;
 import org.wso2.lsp4intellij.client.languageserver.requestmanager.RequestManager;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import org.springframework.ide.vscode.commons.protocol.java.Classpath.CPE;
+import org.springframework.ide.vscode.commons.protocol.java.Classpath;
+import java.io.File;
+import java.net.MalformedURLException;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -59,9 +55,9 @@ public class ClasspathListener {
         requestManager = null;
     }
 
-    private List<CPE> collectCPEs() {
+    private List<org.springframework.ide.vscode.commons.protocol.java.Classpath.CPE> collectCPEs() {
         final ProjectRootManager projectRootManager = ProjectRootManager.getInstance(project);
-        final List<CPE> cpes = new ArrayList<>();
+        final List<org.springframework.ide.vscode.commons.protocol.java.Classpath.CPE> cpes = new ArrayList<>();
 
         Arrays.stream(ModuleManager.getInstance(project).getModules()).parallel().forEach(m -> {
             final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(m);
@@ -77,8 +73,12 @@ public class ClasspathListener {
 
             Arrays.stream(l.getFiles(OrderRootType.CLASSES)).map(f -> {
                 CPE cpe = toBinaryCPE(f);
-                cpe.setSourceContainerUrl(sourcePath);
-                cpe.setJavadocContainerUrl(javadocPath);
+                try {
+                    cpe.setJavadocContainerUrl(new File(javadocPath).toURL());
+                    cpe.setSourceContainerUrl(new File(sourcePath).toURL());
+                } catch (MalformedURLException e) {
+                    LOGGER.error(e.getMessage(), e);
+                }
                 return cpe;
             }).forEach(cpes::add);
             return true;
@@ -87,19 +87,14 @@ public class ClasspathListener {
     }
 
     private CPE mapSourceRoot(VirtualFile file, String outputUrl) {
-        CPE cpe = CPE.source();
-        cpe.setPath(file.getPath());
-        cpe.setOutputFolder(outputUrl);
-        return cpe;
+        return CPE.source(new File(file.getPath()), new File(outputUrl));
     }
 
     private void sendClasspathCommand(Collection<CPE> entries, boolean deleted) {
         ExecuteCommandParams commandParams = new ExecuteCommandParams();
         commandParams.setCommand(callbackCommandId);
 
-        Classpath classpath = new Classpath();
-        classpath.setEntries(Lists.newArrayList(entries));
-
+        Classpath classpath = new Classpath(Lists.newArrayList(entries));
         commandParams.setArguments(ClasspathArgument.argument(project.getName())
                 .projectUri(project.getProjectFilePath()).classpath(classpath).arguments());
         CompletableFuture<Object> result = requestManager.executeCommand(commandParams);

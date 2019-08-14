@@ -5,11 +5,14 @@ plugins {
 repositories {
     mavenCentral()
     mavenLocal()
+    maven {
+        url 'https://repo.spring.io/libs-snapshot/'
+    }
 }
 
 intellij {
     //version '2018.3'
-    plugins = ['IntelliLang']
+    plugins = ['IntelliLang', 'java']
     pluginName 'idea-boot-java'
     downloadSources = false
     localPath '/opt/ideaIC-2019'
@@ -22,6 +25,7 @@ patchPluginXml {
 
 dependencies {
     compile 'org.wso2.lsp4intellij:lsp4intellij:8.0.1-SNAPSHOT'
+    compile 'org.springframework.ide.vscode:commons-java:1.10.0-20190809.091424-31'
 }
 
 sourceSets {
