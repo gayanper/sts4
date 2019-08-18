@@ -47,7 +47,7 @@ public class ClasspathUtil {
 				IClasspathEntry[] resolvedJreEntries = ((JavaProject)javaProject).resolveClasspath(new IClasspathEntry[] {jreContainer});
 				Set<String> paths = new HashSet<>();
 				for (IClasspathEntry systemEntry : resolvedJreEntries) {
-					paths.add(systemEntry.getPath().toString());
+					paths.add(systemEntry.getPath().toFile().getAbsolutePath());
 				}
 				return paths;
 			}
@@ -109,14 +109,14 @@ public class ClasspathUtil {
 		String kind = toContentKind(entry);
 		switch (kind) {
 		case Classpath.ENTRY_KIND_BINARY: {
-			String path = entry.getPath().toString();
+			String path = entry.getPath().toFile().getAbsolutePath();
 			CPE cpe = CPE.binary(path);
 			if (systemLibs.contains(path)) {
 				cpe.setSystem(true);
 			}
 			IPath sp = entry.getSourceAttachmentPath();
 			if (sp != null) {
-				cpe.setSourceContainerUrl(sp.toFile().toURI().toURL());
+				cpe.setSourceContainerUrl(sp.toFile().getAbsoluteFile().toURI().toURL());
 				// TODO:
 //					IPath srp = entry.getSourceAttachmentRootPath();
 //					if (srp!=null) {
@@ -131,7 +131,17 @@ public class ClasspathUtil {
 				return resolveDependencyProjectCPEs(projectPath);
 			} else if (entry.getEntryKind() == IClasspathEntry.CPE_SOURCE) {
 				CPE cpe = createSourceCPE(javaProject, entry);
-				cpe.setOwn(true);
+				if (cpe != null) {
+					cpe.setOwn(true);
+					cpe.setTest(entry.isTest());
+					// If any package fragment roots from classpath entry has children then there is java content in the source folder
+					for (IPackageFragmentRoot root : ((JavaProject)javaProject).computePackageFragmentRoots(entry)) {
+						if (root.hasChildren()) {
+							cpe.setJavaContent(true);
+							break;
+						}
+					}
+				}
 				return cpe == null ? null : Collections.singletonList(cpe);
 			}
 		}

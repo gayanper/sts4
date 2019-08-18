@@ -113,6 +113,8 @@ import org.springframework.ide.vscode.commons.protocol.HighlightParams;
 import org.springframework.ide.vscode.commons.protocol.ProgressParams;
 import org.springframework.ide.vscode.commons.protocol.STS4LanguageClient;
 import org.springframework.ide.vscode.commons.protocol.java.ClasspathListenerParams;
+import org.springframework.ide.vscode.commons.protocol.java.JavaCodeCompleteData;
+import org.springframework.ide.vscode.commons.protocol.java.JavaCodeCompleteParams;
 import org.springframework.ide.vscode.commons.protocol.java.JavaDataParams;
 import org.springframework.ide.vscode.commons.protocol.java.JavaSearchParams;
 import org.springframework.ide.vscode.commons.protocol.java.JavaTypeHierarchyParams;
@@ -384,6 +386,11 @@ public class LanguageServerHarness {
 
 				@Override
 				public CompletableFuture<List<TypeDescriptorData>> javaSuperTypes(JavaTypeHierarchyParams params) {
+					return CompletableFuture.completedFuture(Collections.emptyList());
+				}
+
+				@Override
+				public CompletableFuture<List<JavaCodeCompleteData>> javaCodeComplete(JavaCodeCompleteParams params) {
 					return CompletableFuture.completedFuture(Collections.emptyList());
 				}
 
@@ -722,7 +729,7 @@ public class LanguageServerHarness {
 
 	public List<? extends Location> getDefinitions(TextDocumentPositionParams params) throws Exception {
 		waitForReconcile(); //goto definitions relies on reconciler infos! Must wait or race condition breaking tests occasionally.
-		return getServer().getTextDocumentService().definition(params).get();
+		return getServer().getTextDocumentService().definition(params).get().getLeft();
 	}
 
 	public static void assertDocumentation(String expected, CompletionItem completion) {
@@ -774,7 +781,7 @@ public class LanguageServerHarness {
 
 				TextDocument workingDocument = new TextDocument(uri, document.getLanguageId());
 				workingDocument.setText(document.getText());
-				DocumentEdits edits = new DocumentEdits(workingDocument);
+				DocumentEdits edits = new DocumentEdits(workingDocument, false);
 				for (TextEdit edit : entry.getValue()) {
 					Range range = edit.getRange();
 					edits.replace(document.toOffset(range.getStart()), document.toOffset(range.getEnd()), edit.getNewText());
@@ -797,7 +804,7 @@ public class LanguageServerHarness {
 					Path path = Paths.get(URI.create(uri));
 					String content = docInfo == null ? IOUtil.toString(Files.newInputStream(path)) : docInfo.getText();
 					TextDocument workingDocument = new TextDocument(uri, docInfo == null ? (LanguageId) null : docInfo.getLanguageId(), 0, content);
-					DocumentEdits edits = new DocumentEdits(workingDocument);
+					DocumentEdits edits = new DocumentEdits(workingDocument, false);
 					for (TextEdit textEdit : docEdit.getEdits()) {
 						Range range = textEdit.getRange();
 						edits.replace(workingDocument.toOffset(range.getStart()), workingDocument.toOffset(range.getEnd()), textEdit.getNewText());

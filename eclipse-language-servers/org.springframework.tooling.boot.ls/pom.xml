@@ -7,51 +7,24 @@
 	<parent>
 		<groupId>org.springframework.boot.ide</groupId>
 		<artifactId>org.springframework.boot.ide.servers</artifactId>
-		<version>4.2.1-SNAPSHOT</version>
+		<version>4.4.0-SNAPSHOT</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<artifactId>org.springframework.tooling.boot.ls</artifactId>
-	<version>1.6.0-SNAPSHOT</version>
+	<version>1.11.0-SNAPSHOT</version>
 	<packaging>eclipse-plugin</packaging>
-
-	<dependencies>
-		<dependency>
-			<groupId>org.springframework.ide.vscode</groupId>
-			<artifactId>spring-boot-language-server</artifactId>
-			<version>1.6.0-SNAPSHOT</version>
-		</dependency>
-	</dependencies>
 
 	<build>
 		<plugins>
+
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-dependency-plugin</artifactId>
 				<version>3.1.1</version>
 				<executions>
 					<execution>
-						<id>copy</id>
-						<phase>prepare-package</phase>
-						<goals>
-							<goal>copy</goal>
-						</goals>
-						<configuration>
-							<artifactItems>
-								<artifactItem>
-									<groupId>org.springframework.ide.vscode</groupId>
-									<artifactId>spring-boot-language-server</artifactId>
-									<overWrite>true</overWrite>
-									<outputDirectory>${project.build.directory}/../servers</outputDirectory>
-								</artifactItem>
-							</artifactItems>
-							<overWriteReleases>true</overWriteReleases>
-							<overWriteSnapshots>true</overWriteSnapshots>
-						</configuration>
-					</execution>
-
-					<execution>
-						<id>unpack</id>
+						<id>unpack-server</id>
 						<phase>prepare-package</phase>
 						<goals>
 							<goal>unpack</goal>
@@ -61,11 +34,14 @@
 								<artifactItem>
 									<groupId>org.springframework.ide.vscode</groupId>
 									<artifactId>spring-boot-language-server</artifactId>
-									<!-- <includes>META-INF/third-party-open-source-licenses*</includes> -->
+									<classifier>exec</classifier>
+									<version>${project.version}</version>
+									<overWrite>true</overWrite>
 								</artifactItem>
 							</artifactItems>
-							<includes>META-INF/third-party-open-source-licenses.txt,META-INF/third-party-open-source-licenses/**.*</includes>
-							<outputDirectory>${project.build.directory}/../</outputDirectory>
+							<overWriteReleases>true</overWriteReleases>
+							<overWriteSnapshots>true</overWriteSnapshots>
+							<outputDirectory>${project.build.directory}/../servers/spring-boot-language-server</outputDirectory>
 						</configuration>
 					</execution>
 				</executions>
@@ -88,7 +64,20 @@
 				</configuration>
 			</plugin>
 
+			<plugin>
+				<artifactId>maven-clean-plugin</artifactId>
+				<version>3.1.0</version>
+				<configuration>
+					<filesets>
+						<fileset>
+							<directory>servers</directory>
+						</fileset>
+					</filesets>
+				</configuration>
+			</plugin>
+
 		</plugins>
+
 	</build>
 
 </project>

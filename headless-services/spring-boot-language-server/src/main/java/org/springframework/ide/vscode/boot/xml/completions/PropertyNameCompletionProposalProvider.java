@@ -10,10 +10,14 @@
  *******************************************************************************/
 package org.springframework.ide.vscode.boot.xml.completions;
 
+import static org.springframework.ide.vscode.boot.xml.XmlConfigConstants.BEAN_ELEMENT;
+import static org.springframework.ide.vscode.boot.xml.XmlConfigConstants.CLASS_ATTRIBUTE;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.eclipse.lsp4j.CompletionItemKind;
 import org.eclipse.lsp4xml.dom.DOMAttr;
@@ -22,7 +26,6 @@ import org.eclipse.lsp4xml.dom.parser.Scanner;
 import org.springframework.ide.vscode.boot.xml.XMLCompletionProvider;
 import org.springframework.ide.vscode.commons.java.IJavaProject;
 import org.springframework.ide.vscode.commons.java.IMethod;
-import org.springframework.ide.vscode.commons.java.IType;
 import org.springframework.ide.vscode.commons.languageserver.completion.DocumentEdits;
 import org.springframework.ide.vscode.commons.languageserver.completion.ICompletionProposal;
 import org.springframework.ide.vscode.commons.languageserver.java.JavaProjectFinder;
@@ -59,26 +62,23 @@ public class PropertyNameCompletionProposalProvider implements XMLCompletionProv
 			}
 
 			String beanClass = identifyBeanClass(node);
-			if (beanClass != null) {
-				IType beanType = project.getIndex().findType(beanClass);
-
+			if (beanClass != null && beanClass.length() > 0) {
 				final String searchPrefix = prefix;
-				return beanType.getMethods()
-						.filter(method -> isPropertyWriteMethod(method))
-						.filter(method -> getPropertyName(method).startsWith(searchPrefix))
-						.map(method -> createProposal(method, doc, offset, tokenOffset, tokenEnd))
-						.collect(Collectors.toList());
+				return propertyNameCandidateMethods(project, beanClass)
+					.filter(method -> getPropertyName(method).startsWith(searchPrefix))
+					.map(method -> createProposal(method, doc, offset, tokenOffset, tokenEnd))
+					.collect(Collectors.toList());
 			}
 		};
 
 		return Collections.emptyList();
 	}
 
-	private String identifyBeanClass(DOMNode node) {
+	public static String identifyBeanClass(DOMNode node) {
 		DOMNode parentNode = node.getParentNode();
 		if (parentNode != null) {
-			if ("bean".equals(parentNode.getLocalName())) {
-				String beanClassAttribute = parentNode.getAttribute("class");
+			if (BEAN_ELEMENT.equals(parentNode.getLocalName())) {
+				String beanClassAttribute = parentNode.getAttribute(CLASS_ATTRIBUTE);
 				return beanClassAttribute;
 			}
 		}
@@ -89,7 +89,7 @@ public class PropertyNameCompletionProposalProvider implements XMLCompletionProv
 		String label = getPropertyName(method);
 		CompletionItemKind kind = CompletionItemKind.Method;
 
-		DocumentEdits edits = new DocumentEdits(doc);
+		DocumentEdits edits = new DocumentEdits(doc, false);
 
 		String replaceString = "\"" + label + "\"";
 		int replaceStart = tokenStart;
@@ -105,13 +105,13 @@ public class PropertyNameCompletionProposalProvider implements XMLCompletionProv
 		return new TypeCompletionProposal(label, kind, edits, label, renderable, 1d);
 	}
 
-	private boolean isPropertyWriteMethod(IMethod method) {
+	private static boolean isPropertyWriteMethod(IMethod method) {
 		return method != null
 				&& method.getElementName().startsWith("set")
 				&& method.getElementName().length() > 3;
 	}
 
-	private String getPropertyName(IMethod method) {
+	public static String getPropertyName(IMethod method) {
 		String methodName = method.getElementName();
 		if (methodName.startsWith("set")) {
 			String propertyName = methodName.substring(3);
@@ -120,6 +120,13 @@ public class PropertyNameCompletionProposalProvider implements XMLCompletionProv
 			}
 		}
 		return methodName;
+	}
+	
+	public static Stream<IMethod> propertyNameCandidateMethods(IJavaProject project, String beanClassFqName) {
+		return project.getIndex().allSuperTypesOf(beanClassFqName, true)
+			.toStream()
+			.flatMap(type -> type.getMethods())
+			.filter(PropertyNameCompletionProposalProvider::isPropertyWriteMethod);
 	}
 
 }

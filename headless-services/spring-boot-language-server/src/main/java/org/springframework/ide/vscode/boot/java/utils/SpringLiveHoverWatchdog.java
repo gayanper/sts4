@@ -38,9 +38,6 @@ import org.springframework.ide.vscode.commons.protocol.HighlightParams;
 import org.springframework.ide.vscode.commons.util.MemoizingProxy;
 import org.springframework.ide.vscode.commons.util.text.TextDocument;
 
-import net.sf.cglib.proxy.Enhancer;
-import net.sf.cglib.proxy.MethodInterceptor;
-
 /**
  * @author Martin Lippert
  */
@@ -60,6 +57,7 @@ public class SpringLiveHoverWatchdog {
 	private ScheduledThreadPoolExecutor timer;
 	private JavaProjectFinder projectFinder;
 	private final Map<String, AtomicReference<IJavaProject>> watchedDocs;
+	
 
 
 	public SpringLiveHoverWatchdog(
@@ -115,7 +113,7 @@ public class SpringLiveHoverWatchdog {
 
 	private synchronized void start() {
 		if (highlightsEnabled && timer == null) {
-			logger.debug("Starting SpringLiveHoverWatchdog");
+			logger.info("Starting SpringLiveHoverWatchdog");
 			this.timer = new ScheduledThreadPoolExecutor(1);
 			this.timer.scheduleWithFixedDelay(() -> this.update(), 0, POLLING_INTERVAL_MILLISECONDS, TimeUnit.MILLISECONDS);
 		}
@@ -208,18 +206,17 @@ public class SpringLiveHoverWatchdog {
 		}
 	}
 
+	private final MemoizingProxy.Builder<SpringBootApp> memoizingProxyBuilder = MemoizingProxy.builder(SpringBootApp.class, Duration.ofMillis(20000));
+	
 	private Collection<SpringBootApp> createAppCaches(Collection<SpringBootApp> runningBootApps) {
 		return runningBootApps.stream().map(app -> {
-		    MethodInterceptor handler = new MemoizingProxy.MemoizingProxyHandler(app, Duration.ofMillis(20000));
-		    SpringBootApp proxied = (SpringBootApp) Enhancer.create(SpringBootApp.class, handler);
-
+			SpringBootApp proxied = memoizingProxyBuilder.delegateTo(app);
 		    try {
 		    	proxied.getProcessName();
 		    	proxied.getProcessID();
 		    }
 		    catch (Exception e) {
 		    }
-
 		    return proxied;
 		}).filter(app -> app != null).collect(Collectors.toList());
 	}
@@ -239,14 +236,17 @@ public class SpringLiveHoverWatchdog {
 
 	private IJavaProject getCachedProject(String docURI) {
 		AtomicReference<IJavaProject> reference = this.watchedDocs.get(docURI);
-		IJavaProject project = reference.get();
-		if (project == null) {
-			project = identifyProject(docURI);
-			if (!reference.compareAndSet(null, project)) {
-				return reference.get();
+		if (reference != null) {
+			IJavaProject project = reference.get();
+			if (project == null) {
+				project = identifyProject(docURI);
+				if (!reference.compareAndSet(null, project)) {
+					return reference.get();
+				}
 			}
+			return project;
 		}
-		return project;
+		return null;
 	}
 
 	private IJavaProject identifyProject(String docURI) {
@@ -260,9 +260,12 @@ public class SpringLiveHoverWatchdog {
 	}
 
 	private void publishLiveHints(String docURI, CodeLens[] codeLenses) {
-		int version = server.getTextDocumentService().get(docURI).getVersion();
-		VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier(docURI, version);
-		server.getClient().highlight(new HighlightParams(id, Arrays.asList(codeLenses)));
+		TextDocument doc = server.getTextDocumentService().get(docURI);
+		if (doc != null) {
+			int version = doc.getVersion();
+			VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier(docURI, version);
+			server.getClient().highlight(new HighlightParams(id, Arrays.asList(codeLenses)));
+		}
 	}
 
 	private void cleanupLiveHints(String docURI) {

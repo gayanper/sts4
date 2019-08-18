@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2018 Pivotal, Inc.
+ * Copyright (c) 2018, 2019 Pivotal, Inc.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -19,17 +19,17 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.ide.vscode.commons.languageserver.completion.VscodeCompletionEngineAdapter.CompletionFilter;
 import org.springframework.ide.vscode.commons.languageserver.config.LanguageServerInitializer;
 import org.springframework.ide.vscode.commons.languageserver.config.LanguageServerProperties;
 import org.springframework.ide.vscode.commons.languageserver.reconcile.DiagnosticSeverityProvider;
+import org.springframework.ide.vscode.commons.languageserver.util.CompletionServerCapabilityRegistration;
 import org.springframework.ide.vscode.commons.languageserver.util.DefinitionHandler;
 import org.springframework.ide.vscode.commons.languageserver.util.DocumentSymbolHandler;
 import org.springframework.ide.vscode.commons.languageserver.util.LanguageSpecific;
-import org.springframework.ide.vscode.commons.languageserver.util.LspClient;
-import org.springframework.ide.vscode.commons.languageserver.util.LspClient.Client;
 import org.springframework.ide.vscode.commons.languageserver.util.SimpleLanguageServer;
 import org.springframework.ide.vscode.commons.languageserver.util.SimpleTextDocumentService;
 import org.springframework.ide.vscode.commons.util.text.LanguageId;
@@ -38,7 +38,7 @@ import org.springframework.util.Assert;
 
 import com.google.common.collect.ImmutableMap;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(LanguageServerProperties.class)
 public class LanguageServerAutoConf {
 	
@@ -46,13 +46,10 @@ public class LanguageServerAutoConf {
 	@Bean public SimpleLanguageServer languageServer(
 			LanguageServerProperties props, 
 			Optional<DiagnosticSeverityProvider> severities,
-			Optional<CompletionFilter> completionFilter
+			Optional<CompletionFilter> completionFilter,
+			ApplicationContext appContext
 	) throws Exception {
-		SimpleLanguageServer server = new SimpleLanguageServer(props.getExtensionId());
-		if (LspClient.currentClient()!=Client.VSCODE) {
-			//Vscode excluded. See https://github.com/spring-projects/sts4/issues/193
-			server.setCompletionTriggerCharacters(props.getCompletionTriggerCharacters());
-		}
+		SimpleLanguageServer server = new SimpleLanguageServer(props.getExtensionId(), appContext, props);
 		server.setCompletionFilter(completionFilter);
 		severities.ifPresent(server::setDiagnosticSeverityProvider);
 		return server;
@@ -65,6 +62,10 @@ public class LanguageServerAutoConf {
 			serverInit.initialize(server);
 		};
 	}
+	
+	@Bean CompletionServerCapabilityRegistration completionCapabilities(SimpleLanguageServer server, LanguageServerProperties props) {
+		return new CompletionServerCapabilityRegistration(server, props);
+	}
 
 	@Bean SimpleTextDocumentService documents(SimpleLanguageServer ls) {
 		return ls.getTextDocumentService();
@@ -72,7 +73,7 @@ public class LanguageServerAutoConf {
 
 	@ConditionalOnBean(DefinitionHandler.class)
 	@Bean
-	InitializingBean registerDefintionHandler(SimpleTextDocumentService documents,
+	InitializingBean registerDefinitionHandler(SimpleTextDocumentService documents,
 			List<DefinitionHandler> definitionHandlers) {
 		if (definitionHandlers.size() == 1) {
 			return () -> documents.onDefinition(definitionHandlers.get(0));

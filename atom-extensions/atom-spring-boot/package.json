@@ -1,6 +1,6 @@
 {
   "name": "spring-boot",
-  "version": "1.6.0",
+  "version": "1.11.0",
   "description": "Spring Boot support for Atom",
   "repository": "https://github.com/spring-projects/atom-spring-boot",
   "icon": "icon.png",
@@ -25,10 +25,30 @@
       "default": true,
       "description": "Enable/Disable Spring running Boot application live hints decorators in the source code"
     },
+    "scan-java-test-sources.on": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable/Disable Java test sources files scanning"
+    },
     "support-spring-xml-config.on": {
       "type": "boolean",
       "default": false,
       "description": "Enable/Disable Support for Spring XML Config files"
+    },
+    "support-spring-xml-config.hyperlinks": {
+      "type": "boolean",
+      "description": "Enable/Disable Hyperlinks in Spring XML Config file editor",
+      "default": true
+    },
+    "support-spring-xml-config.content-assist": {
+      "type": "boolean",
+      "description": "Enable/Disable Content Assist in Spring XML Config file editor",
+      "default": true
+    },
+    "support-spring-xml-config.scan-folders-globs": {
+      "type": "string",
+      "default": "**/src/main/**",
+      "description": "Scan Spring XML in folders"
     },
     "change-detection.on": {
       "type": "boolean",

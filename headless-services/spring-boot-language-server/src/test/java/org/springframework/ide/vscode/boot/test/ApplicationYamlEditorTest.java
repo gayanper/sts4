@@ -70,6 +70,59 @@ public class ApplicationYamlEditorTest extends AbstractPropsEditorTest {
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////
+	
+	@Test public void bug_GH_327() throws Exception {
+		//See https://github.com/spring-projects/sts4/issues/327
+		data("spring.resources.static-locations", "java.lang.Boolean", null, "Blah");
+		data("spring.devtools.restart.additional-paths", "java.lang.Boolean", null, "Blah blah");
+		
+		Editor editor;
+
+		// basic check
+		editor = harness.newEditor(
+				"spring:\n" + 
+				"  resources:\n" + 
+				"    static_locations: true\n" + 
+				"  devtools:\n" + 
+				"    restart:\n" + 
+				"      additional_paths: false\n"
+		);
+		editor.assertProblems(/*NONE*/);
+
+		//Also check whether reconciler understands the structure when inside of a 'relaxed' name key 
+		editor = harness.newEditor(
+				"spring:\n" + 
+				"  resources:\n" + 
+				"    static_locations: bad\n" + 
+				"  devtools:\n" + 
+				"    restart:\n" + 
+				"      additional_paths: wrong\n"
+		);
+		editor.assertProblems(
+				"bad|boolean",
+				"wrong|boolean"
+		);
+	}
+	
+	@Test public void bug_165724475() throws Exception {
+		//See: 
+		// https://www.pivotaltracker.com/story/show/165724475
+		// https://github.com/spring-projects/spring-ide/issues/376
+		
+		defaultTestData();
+		
+		Editor editor = harness.newEditor(
+				"server:\n" + 
+				"  port: bork\n" + 
+				"logging.level.org.springframework.kafka.listener.[KafkaMessageListenerContainer$ListenerConsumer]: INFO\n" + 
+				"bogus: bad"
+		);
+		editor.assertProblems(
+				"bork|Expecting a 'int'",
+				"logging.level.org.springframework.kafka.listener.[KafkaMessageListenerContainer$ListenerConsumer]|Unknown property",
+				"bogus|Unknown property"
+		);
+	}
 
 	@Test public void inheritedPojoProperties() throws Exception {
 		//See https://github.com/spring-projects/sts4/issues/116
@@ -87,7 +140,7 @@ public class ApplicationYamlEditorTest extends AbstractPropsEditorTest {
 		);
 		editor.assertProblems(/*NONE*/);
 	}
-
+	
 	@Test public void bug_158348104() throws Exception {
 		//See: https://www.pivotaltracker.com/story/show/158348104
 		data("spring.activemq.close-timeout", "java.time.Duration", null, null);
@@ -488,6 +541,31 @@ public class ApplicationYamlEditorTest extends AbstractPropsEditorTest {
 
 		definitionLinkAsserts.assertLinkTargets(editor, "data", project, method("demo.FooProperties", "setData", "demo.ColorData"));
 		definitionLinkAsserts.assertLinkTargets(editor, "wavelen", project, method("demo.ColorData", "setWavelen", "double"));
+	}
+	
+	@Test
+	public void testInheritedPropertyLinkTarget() throws Exception {
+		//See: https://github.com/spring-projects/sts4/issues/326
+		MavenJavaProject project = createPredefinedMavenProject("super-property-nav-sample");
+		useProject(project);
+
+		Editor editor = harness.newEditor(
+				"initializr:\n" + 
+				"  languages:\n" + 
+				"  - name: foo\n" + 
+				"    id: yada\n" + 
+				"    default: false\n" +
+				"    bogus: whatever\n"
+		);
+
+		//io.spring.initializr.metadata.DefaultMetadataElement.setDefault(boolean)
+		//io.spring.initializr.metadata.MetadataElement.setId(String)
+		//io.spring.initializr.metadata.MetadataElement.setName(String)
+		definitionLinkAsserts.assertLinkTargets(editor, "name", project, method("io.spring.initializr.metadata.MetadataElement", "setName", "java.lang.String"));
+		definitionLinkAsserts.assertLinkTargets(editor, "id", project, method("io.spring.initializr.metadata.MetadataElement", "setId", "java.lang.String"));
+		definitionLinkAsserts.assertLinkTargets(editor, "default", project, method("io.spring.initializr.metadata.DefaultMetadataElement", "setDefault", "boolean"));
+		
+		definitionLinkAsserts.assertLinkTargets(editor, "bogus", project /*NONE*/);
 	}
 
 	@Test public void testHyperlinkTargets() throws Exception {

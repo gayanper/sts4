@@ -33,6 +33,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.ide.vscode.boot.app.SpringSymbolIndex;
 import org.springframework.ide.vscode.boot.bootiful.BootLanguageServerTest;
 import org.springframework.ide.vscode.boot.bootiful.SymbolProviderTestConf;
+import org.springframework.ide.vscode.boot.java.utils.SymbolIndexConfig;
 import org.springframework.ide.vscode.commons.java.IJavaProject;
 import org.springframework.ide.vscode.commons.languageserver.java.JavaProjectFinder;
 import org.springframework.ide.vscode.commons.util.Assert;
@@ -59,7 +60,7 @@ public class SpringIndexerTest {
 	@Before
 	public void setup() throws Exception {
 		harness.intialize(null);
-		indexer.configureIndexer(false);
+		indexer.configureIndexer(SymbolIndexConfig.builder().scanXml(false).build()).get(5, TimeUnit.SECONDS);;
 
 		directory = new File(ProjectsHarness.class.getResource("/test-projects/test-annotation-indexing-parent/test-annotation-indexing/").toURI());
 		projectDir = directory.toURI().toString();
@@ -91,6 +92,21 @@ public class SpringIndexerTest {
 
 		docUri = directory.toPath().resolve("src/main/java/org/test/ClassWithDefaultSymbol.java").toUri().toString();
 		assertTrue(containsSymbol(allSymbols, "@Configurable", docUri, 4, 0, 4, 13));
+	}
+	
+	@Test
+	public void testScanTestJavaSources() throws Exception {
+		indexer.configureIndexer(SymbolIndexConfig.builder().scanTestJavaSources(true).build()).get(1, TimeUnit.SECONDS);
+		
+		List<? extends SymbolInformation> allSymbols = indexer.getAllSymbols("");
+		assertEquals(8, allSymbols.size());
+		String docUri = directory.toPath().resolve("src/test/java/demo/ApplicationTests.java").toUri().toString();
+		assertTrue(containsSymbol(allSymbols, "@SpringBootTest", docUri, 8, 0, 8, 15));
+		
+		indexer.configureIndexer(SymbolIndexConfig.builder().scanTestJavaSources(false).build()).get(1, TimeUnit.SECONDS);
+		allSymbols = indexer.getAllSymbols("");
+		assertEquals(7, allSymbols.size());
+		assertFalse(containsSymbol(allSymbols, "@SpringBootTest", docUri, 8, 0, 8, 15));
 	}
 
 	@Test
@@ -145,7 +161,7 @@ public class SpringIndexerTest {
 		assertTrue(containsSymbol(indexer.getSymbols(changedDocURI), "@/mapping1", changedDocURI));
 
 		String newContent = FileUtils.readFileToString(new File(new URI(changedDocURI))).replace("mapping1", "mapping1-CHANGED");
-		CompletableFuture<Void> updateFuture = indexer.updateDocument(changedDocURI, newContent);
+		CompletableFuture<Void> updateFuture = indexer.updateDocument(changedDocURI, newContent, "test triggered");
 		updateFuture.get(5, TimeUnit.SECONDS);
 
 		// check for updated index per document
@@ -177,7 +193,6 @@ public class SpringIndexerTest {
 	@Test
 	public void testNewDocumentCreated() throws Exception {
 		String createdDocURI = directory.toPath().resolve("src/main/java/org/test/CreatedClass.java").toUri().toString();
-
 		// check for document to not be created yet
 		List<? extends SymbolInformation> symbols = indexer.getSymbols(createdDocURI);
 		assertNotNull(symbols);

@@ -17,10 +17,14 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -58,6 +62,10 @@ import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.IEditorReference;
+import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.IWorkbenchPage;
+import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.progress.UIJob;
 import org.eclipse.ui.texteditor.AbstractDecoratedTextEditor;
@@ -68,6 +76,8 @@ import org.springframework.ide.vscode.commons.protocol.HighlightParams;
 import org.springframework.ide.vscode.commons.protocol.ProgressParams;
 import org.springframework.ide.vscode.commons.protocol.STS4LanguageClient;
 import org.springframework.ide.vscode.commons.protocol.java.ClasspathListenerParams;
+import org.springframework.ide.vscode.commons.protocol.java.JavaCodeCompleteData;
+import org.springframework.ide.vscode.commons.protocol.java.JavaCodeCompleteParams;
 import org.springframework.ide.vscode.commons.protocol.java.JavaDataParams;
 import org.springframework.ide.vscode.commons.protocol.java.JavaSearchParams;
 import org.springframework.ide.vscode.commons.protocol.java.JavaTypeHierarchyParams;
@@ -75,6 +85,7 @@ import org.springframework.ide.vscode.commons.protocol.java.TypeData;
 import org.springframework.ide.vscode.commons.protocol.java.TypeDescriptorData;
 import org.springframework.tooling.jdt.ls.commons.Logger;
 import org.springframework.tooling.jdt.ls.commons.classpath.ReusableClasspathListenerHandler;
+import org.springframework.tooling.jdt.ls.commons.java.JavaCodeCompletion;
 import org.springframework.tooling.jdt.ls.commons.java.JavaData;
 import org.springframework.tooling.jdt.ls.commons.java.JavaFluxSearch;
 import org.springframework.tooling.jdt.ls.commons.java.TypeHierarchy;
@@ -125,11 +136,10 @@ public class STS4LanguageClientImpl extends LanguageClientImpl implements STS4La
 		}
 	}
 
-	final private JavaData javaData = new JavaData(STS4LanguageClientImpl::label , Logger.forEclipsePlugin(LanguageServerCommonsActivator::getInstance));
-
-	final private JavaFluxSearch javaFluxSearch = new JavaFluxSearch(Logger.forEclipsePlugin(LanguageServerCommonsActivator::getInstance), javaData);
-
-	final private TypeHierarchy typeHierarchy = new TypeHierarchy(Logger.forEclipsePlugin(LanguageServerCommonsActivator::getInstance), javaData);
+	private final JavaData javaData = new JavaData(STS4LanguageClientImpl::label , Logger.forEclipsePlugin(LanguageServerCommonsActivator::getInstance));
+	private final JavaFluxSearch javaFluxSearch = new JavaFluxSearch(Logger.forEclipsePlugin(LanguageServerCommonsActivator::getInstance), javaData);
+	private final TypeHierarchy typeHierarchy = new TypeHierarchy(Logger.forEclipsePlugin(LanguageServerCommonsActivator::getInstance), javaData);
+	private final JavaCodeCompletion codeComplete = new JavaCodeCompletion();
 
 	private static final String ANNOTION_TYPE_ID = "org.springframework.tooling.bootinfo";
 
@@ -177,10 +187,12 @@ public class STS4LanguageClientImpl extends LanguageClientImpl implements STS4La
 	static class UpdateHighlights extends UIJob {
 
 		private String target;
+		private boolean updateCodeMinings;
 
-		UpdateHighlights(String target) {
+		UpdateHighlights(String target, boolean updateCodeMinings) {
 			super("Update highlights");
 			this.target = target;
+			this.updateCodeMinings = updateCodeMinings;
 			setSystem(true);
 			schedule();
 		}
@@ -202,12 +214,12 @@ public class STS4LanguageClientImpl extends LanguageClientImpl implements STS4La
 						if (target != null) {
 							HighlightParams highlightParams = currentHighlights.get(target);
 							if (Utils.isProperDocumentIdFor(doc, highlightParams.getDoc())) {
-								updateHighlightAnnotations(editor, sourceViewer, annotationModel, target);
+								updateHighlightAnnotations(editor, sourceViewer, annotationModel, target, updateCodeMinings);
 							}
 						} else {
 							URI uri = Utils.findDocUri(doc);
 							if (uri != null) {
-								updateHighlightAnnotations(editor, sourceViewer, annotationModel, uri.toString());
+								updateHighlightAnnotations(editor, sourceViewer, annotationModel, uri.toString(), updateCodeMinings);
 							}
 						}
 					}
@@ -218,14 +230,15 @@ public class STS4LanguageClientImpl extends LanguageClientImpl implements STS4La
 	};
 
 	private static void updateHighlightAnnotations(IEditorPart editor, ISourceViewer sourceViewer,
-			IAnnotationModel annotationModel, String docUri) {
+			IAnnotationModel annotationModel, String docUri, boolean updateCodeMinings) {
+		boolean codeLensHighlightOn = isCodeLensHighlightOn();
 		if (annotationModel instanceof IAnnotationModelExtension) {
-			if (isCodeLensHighlightOn()) {
+			if (codeLensHighlightOn) {
 				addBootRangeHighlightSupport(editor, sourceViewer);
 			}
 			updateAnnotations(docUri, sourceViewer, (IAnnotationModelExtension) annotationModel);
 		}
-		if (sourceViewer instanceof ISourceViewerExtension5) {
+		if (updateCodeMinings && sourceViewer instanceof ISourceViewerExtension5) {
 			if (sourceViewer instanceof JavaSourceViewer) {
 				// JavaSourceViewer#updateCodeMinings() is overridden and doesn't do anything
 				try {
@@ -317,8 +330,12 @@ public class STS4LanguageClientImpl extends LanguageClientImpl implements STS4La
 	public synchronized void highlight(HighlightParams highlights) {
 		String target = highlights.getDoc().getUri();
 		if (target!=null) {
-			currentHighlights.put(target, highlights);
-			new UpdateHighlights(target);
+			HighlightParams oldHighligts = currentHighlights.get(target);
+			List<CodeLens> oldCodelenses = oldHighligts==null ? ImmutableList.of() : oldHighligts.getCodeLenses();
+			if (!oldCodelenses.equals(highlights.getCodeLenses())) {
+				currentHighlights.put(target, highlights);
+				new UpdateHighlights(target, isCodeLensHighlightOn());
+			}
 		}
 	}
 
@@ -349,9 +366,34 @@ public class STS4LanguageClientImpl extends LanguageClientImpl implements STS4La
 		}
 	}
 
+	public STS4LanguageClientImpl() {
+		classpathService.addNotificationsSentCallback(projectNames -> {
+			List<IProject> projects = projectNames.stream().map(projectName -> ResourcesPlugin.getWorkspace().getRoot().getProject(projectName)).filter(Objects::nonNull).collect(Collectors.toList());
+			for (IWorkbenchWindow ww : PlatformUI.getWorkbench().getWorkbenchWindows()) {
+				for (IWorkbenchPage page : ww.getPages()) {
+					for (IEditorReference editorRef : page.getEditorReferences()) {
+						IEditorPart editor = editorRef.getEditor(false);
+						if (editor != null) {
+							if (editor.getEditorInput() instanceof IFileEditorInput) {
+								IFile file = ((IFileEditorInput)editor.getEditorInput()).getFile();
+								if (file != null && projects.contains(file.getProject())) {
+									ITextViewer viewer = editor.getAdapter(ITextViewer.class);
+									if (viewer instanceof ISourceViewerExtension5) {
+										((ISourceViewerExtension5)viewer).updateCodeMinings();
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+		});
+	}
+
 	@Override
 	public CompletableFuture<Object> addClasspathListener(ClasspathListenerParams params) {
-		return CompletableFuture.completedFuture(classpathService.addClasspathListener(params.getCallbackCommandId()));
+		return CompletableFuture.completedFuture(classpathService.addClasspathListener(params.getCallbackCommandId(), params.isBatched()));
 	}
 
 	@Override
@@ -365,8 +407,11 @@ public class STS4LanguageClientImpl extends LanguageClientImpl implements STS4La
 			try {
 				MarkupContent mc = new MarkupContent();
 				mc.setKind(MarkupKind.MARKDOWN);
-				mc.setValue(JavadocUtils.javadoc(JavaDoc2MarkdownConverter::getMarkdownContentReader,
-						URI.create(params.getProjectUri()), params.getBindingKey(), JavaDataParams.isLookInOtherProjects(params)));
+				String javadoc = JavadocUtils.javadoc(JavaDoc2MarkdownConverter::getMarkdownContentReader,
+						URI.create(params.getProjectUri()), params.getBindingKey(), JavaDataParams.isLookInOtherProjects(params));
+				if (javadoc != null) {
+					mc.setValue(javadoc);
+				}
 				return mc;
 			} catch (Exception e) {
 				LanguageServerCommonsActivator.logError(e, "Failed getting javadoc for " + params.toString());
@@ -480,6 +525,19 @@ public class STS4LanguageClientImpl extends LanguageClientImpl implements STS4La
 		return CompletableFuture.supplyAsync(() ->
 			typeHierarchy.superTypes(params).collect(Collectors.toList())
 		);
+	}
+
+	@Override
+	public CompletableFuture<List<JavaCodeCompleteData>> javaCodeComplete(JavaCodeCompleteParams params) {
+		return CompletableFuture.supplyAsync(() -> {
+			try {
+				return codeComplete.codeComplete(params.getProjectUri(), params.getPrefix(), params.isIncludeTypes(), params.isIncludePackages());
+			} catch (Exception e) {
+				LanguageServerCommonsActivator.logError(e, "Failed to do code complete with prefix '" + params.getPrefix()
+						+ "' in project " + params.getProjectUri());
+				return Collections.emptyList();
+			}
+		});
 	}
 
 }

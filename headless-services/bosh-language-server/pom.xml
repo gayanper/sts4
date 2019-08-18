@@ -9,7 +9,7 @@
 	<parent>
 		<groupId>org.springframework.ide.vscode</groupId>
 		<artifactId>commons-parent</artifactId>
-		<version>1.6.0-SNAPSHOT</version>
+		<version>1.11.0-SNAPSHOT</version>
 		<relativePath>../commons/pom.xml</relativePath>
 	</parent>
 
@@ -18,6 +18,12 @@
 	</properties>
 
 	<dependencies>
+		<!-- Yaml -->
+		<dependency>
+			<groupId>org.springframework.ide.vscode</groupId>
+			<artifactId>commons-yaml</artifactId>
+			<version>${dependencies.version}</version>
+		</dependency>
 		<!-- spring boot -->
 		<dependency>
 			<groupId>org.springframework.ide.vscode</groupId>
@@ -28,12 +34,6 @@
 		<dependency>
 			<groupId>org.springframework.ide.vscode</groupId>
 			<artifactId>commons-language-server</artifactId>
-			<version>${dependencies.version}</version>
-		</dependency>
-		<!-- Yaml -->
-		<dependency>
-			<groupId>org.springframework.ide.vscode</groupId>
-			<artifactId>commons-yaml</artifactId>
 			<version>${dependencies.version}</version>
 		</dependency>
 		<!-- Test harness -->
@@ -56,6 +56,9 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<classifier>exec</classifier>
+				</configuration>
 				<executions>
 					<execution>
 						<goals>
@@ -69,7 +72,7 @@
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>license-maven-plugin</artifactId>
-				<version>1.17</version>
+				<version>1.20</version>
 				<executions>
 					<execution>
 						<id>download-licenses</id>
@@ -79,6 +82,22 @@
 						</goals>
 					</execution>
 				</executions>
+				<configuration>
+					<licenseUrlReplacements>
+						<licenseUrlReplacement>
+							<regexp>http://(.*)</regexp>
+							<replacement>https://$1</replacement>
+						</licenseUrlReplacement>
+					</licenseUrlReplacements>
+					<licenseContentSanitizers>
+						<licenseContentSanitizer>
+							<id>all-http</id>
+							<urlRegexp>http(.*)</urlRegexp>
+							<contentRegexp>http://(.*)</contentRegexp>
+							<contentReplacement>https://$1</contentReplacement>
+						</licenseContentSanitizer>
+					</licenseContentSanitizers>
+				</configuration>
 			</plugin>
 
 			<plugin>
@@ -105,6 +124,7 @@
 			</plugin>
 
 			<plugin>
+		        <groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-resources-plugin</artifactId>
 				<executions>
 					<execution>
@@ -120,6 +140,22 @@
 									<directory>${basedir}</directory>
 									<filtering>true</filtering>
 									<include>LICENSE</include>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+					<execution>
+						<id>copy-license-files</id>
+						<phase>process-classes</phase>
+						<goals>
+							<goal>copy-resources</goal>
+						</goals>
+						<configuration>
+							<outputDirectory>${project.build.outputDirectory}/META-INF/third-party-open-source-licenses/</outputDirectory>
+							<resources>
+								<resource>
+									<directory>${project.build.directory}/generated-resources/licenses</directory>
+									<filtering>false</filtering>
 								</resource>
 							</resources>
 						</configuration>
@@ -141,28 +177,6 @@
 						<configuration>
 							<sourceFile>${project.build.directory}/generated-license-information/licenses.xml</sourceFile>
 							<destinationFile>${project.build.outputDirectory}/META-INF/third-party-open-source-licenses.txt</destinationFile>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-
-			<plugin>
-				<artifactId>maven-resources-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>copy-license-files</id>
-						<phase>process-classes</phase>
-						<goals>
-							<goal>copy-resources</goal>
-						</goals>
-						<configuration>
-							<outputDirectory>${project.build.outputDirectory}/META-INF/third-party-open-source-licenses/</outputDirectory>
-							<resources>
-								<resource>
-									<directory>${project.build.directory}/generated-resources/licenses</directory>
-									<filtering>false</filtering>
-								</resource>
-							</resources>
 						</configuration>
 					</execution>
 				</executions>

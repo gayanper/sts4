@@ -5,12 +5,12 @@ import {workspace} from 'vscode';
 
 import * as commons from '@pivotal-tools/commons-vscode';
 
-import {generate_pipeline, UserQuestioner} from '@pivotal-tools/pipeline-builder';
 import {LanguageClient} from "vscode-languageclient";
 
 const PROPERTIES_LANGUAGE_ID = "spring-boot-properties";
 const YAML_LANGUAGE_ID = "spring-boot-properties-yaml";
 const JAVA_LANGUAGE_ID = "java";
+const XML_LANGUAGE_ID = "xml";
 
 /** Called when extension is activated */
 export function activate(context: VSCode.ExtensionContext): Thenable<LanguageClient> {
@@ -25,6 +25,11 @@ export function activate(context: VSCode.ExtensionContext): Thenable<LanguageCli
             if (!jvm.isJdk()) {
                 VSCode.window.showWarningMessage('JAVA_HOME or PATH environment variable seems to point to a JRE. A JDK is required, hence Boot Hints are unavailable.');
             }
+        },
+        explodedLsJarData: {
+            lsLocation: 'language-server',
+            mainClass: 'org.springframework.ide.vscode.boot.app.BootLanguagServerBootApp',
+            configFileName: 'application.properties'
         },
         workspaceOptions: VSCode.workspace.getConfiguration("spring-boot.ls"),
         clientOptions: {
@@ -42,6 +47,14 @@ export function activate(context: VSCode.ExtensionContext): Thenable<LanguageCli
                 {
                     language: JAVA_LANGUAGE_ID,
                     scheme: 'file'
+                },
+                {
+                    language: JAVA_LANGUAGE_ID,
+                    scheme: 'jdt'
+                },
+                {
+                    language: XML_LANGUAGE_ID,
+                    scheme: 'file'
                 }
             ],
             synchronize: {
@@ -55,31 +68,4 @@ export function activate(context: VSCode.ExtensionContext): Thenable<LanguageCli
     };
 
     return commons.activate(options, context);
-}
-
-// NOTE: Be sure to add this under "contributes" in package.json to enable the command:
-//
-// "commands": [
-//     {
-//       "command": "springboot.generate-concourse-pipeline",
-//       "title": "Spring Boot: Generate Concourse Pipeline"
-//     }
-//   ],
-function registerPipelineGenerator(context: VSCode.ExtensionContext) {
-    context.subscriptions.push(VSCode.commands.registerCommand('springboot.generate-concourse-pipeline', () => {
-        let q = (property, defaultValue) => {
-            defaultValue = defaultValue || '';
-            return;
-        };
-        let projectRoot = VSCode.workspace.rootPath;
-        if (projectRoot) {
-            return generate_pipeline(projectRoot, (property, defaultValue) => new Promise<string>((resolve, reject) => {
-                VSCode.window.showInputBox({
-                    prompt: `Enter '${property}': `,
-                    value: defaultValue,
-                    valueSelection: [0, defaultValue.length]
-                }).then(resolve, reject);
-            }));
-        }
-    }));
 }

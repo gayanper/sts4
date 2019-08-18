@@ -79,6 +79,9 @@ public class JavaProjectsServiceWithFallback implements JavaProjectsService {
 
 		this.mainServiceInitialized = this.server
 				.onInitialized(main.initialize())
+				.doOnError(error -> {
+					log.warn("JDT-based JavaProject service not available, will use fallback service", error);
+				})
 				.toFuture();
 
 		this.server.onShutdown(() -> {

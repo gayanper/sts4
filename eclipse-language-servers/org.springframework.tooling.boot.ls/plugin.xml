@@ -38,26 +38,60 @@
    <extension
          point="org.eclipse.core.contenttype.contentTypes">
 
+<!--
+      WARNING! 
+      
+      TLDR; Always put 
+         base-type="org.eclipse.core.runtime.text" 
+      in *every* content type definiton.
+      
+      Longer explanation:
+      
+      Do not use  
+      base-type="org.eclipse.jdt.core.javaProperties"
+      this causes reconciling of *any* properties file
+      as if it was a boot properties file.
+      
+      Similarly
+      base-type="org.eclipse.core.runtime.xml" 
+      causes reconciling of *any* XML file
+      as if it was a Spring xml config file.
+      
+      Also to avoid some suspected bug/weirdness in Lsp4e
+      which I do not really understand, a base-type must allways 
+      be added. Therefore the only possible choice 
+      that makes everything work is
+      "org.eclipse.core.runtime.text".
+      
+      See: https://github.com/spring-projects/sts4/issues/320
+  -->
       <content-type
+            base-type="org.eclipse.core.runtime.text"
             default-charset="ISO-8859-1"
+            file-names="application.properties,application-dev.properties"
+            file-patterns="application-*.properties"
             id="org.springframework.boot.ide.properties.application.properties"
             name="Spring Properties File"
             priority="high">
       </content-type>
 
       <content-type
+            base-type="org.eclipse.core.runtime.text"
             default-charset="UTF-8"
+            file-names="application.yml,bootstrap.yml,application-dev.yml,application.yaml,bootstrap.yaml,application-dev.yaml"
+            file-patterns="application-*.yml,application-*.yaml"
             id="org.springframework.boot.ide.properties.application.yml"
             name="Spring Yaml Properties File"
             priority="high">
       </content-type>
 
-      <content-type id="org.springframework.boot.ide.xmlconfig"
+      <content-type
+            base-type="org.eclipse.core.runtime.xml"
+            default-charset="UTF-8"
+            id="org.springframework.boot.ide.xmlconfig"
             name="Spring XML Config File"
-            base-type="org.eclipse.core.runtime.xml" 
-            priority="normal"
-            default-charset="UTF-8">
-            <describer class="org.eclipse.core.runtime.content.XMLRootElementContentDescriber2">
+            priority="normal">
+            <describer class="org.springframework.tooling.boot.ls.xml.XMLRootElementContentDescriber2">
                   <parameter name="element" value="beans"/>
             </describer>
       </content-type>
@@ -105,13 +139,31 @@
             contentTypeId="org.eclipse.jdt.core.javaSource">
       </participant>
    </extension>
-   
+
    <extension
          point="org.eclipse.ui.preferencePages">
       <page
-            category="org.springframework.tooling.ls.eclipse.commons.console.preferences"
-            class="org.springframework.tooling.boot.ls.BootLanguageServerPreferencesPage"
+            category="org.springframework.tooling.boot.java.ls.preferences"
+            class="org.springframework.tooling.boot.ls.prefs.RemoteAppsPrefsPage"
+            id="org.springframework.tooling.boot.ls.prefs.RemoteAppsPrefsPage"
+            name="Remote Boot Apps">
+      </page>
+      <page
+            category="org.springframework.tooling.boot.ls.preferences"
+            class="org.springframework.tooling.boot.ls.BootJavaPreferencesPage"
             id="org.springframework.tooling.boot.java.ls.preferences"
+            name="Spring Boot Java">
+      </page>
+      <page
+            category="org.springframework.tooling.boot.ls.preferences"
+            class="org.springframework.tooling.boot.ls.XmlConfigPreferencePage"
+            id="org.springframework.tooling.boot.xml.ls.preferences"
+            name="Spring XML Config">
+      </page>
+      <page
+            category="org.springframework.tooling.ls.eclipse.commons.console.preferences"
+            class="org.springframework.tooling.boot.ls.SpringBootLanguageServerPreferencePage"
+            id="org.springframework.tooling.boot.ls.preferences"
             name="Spring Boot Language Server">
       </page>
    </extension>
@@ -222,16 +274,6 @@
       </editor>
    </extension>
 
-<!--
-   <extension
-         point="org.eclipse.ui.editors">
-      <editorContentTypeBinding
-            contentTypeId="org.springframework.boot.ide.properties.application.yml"
-            editorId="org.eclipse.ui.genericeditor.GenericEditor">
-      </editorContentTypeBinding>
-   </extension>
--->
-
    <extension
          point="org.eclipse.ui.genericeditor.presentationReconcilers">
       <presentationReconciler
@@ -291,5 +333,29 @@
       </proposalComputer>
 
    </extension>
+
+   <!-- what is this for? Commented it out but everything seems to work
+   <extension
+         point="org.eclipse.core.filebuffers.documentSetup">
+      <participant
+            class="org.eclipse.lsp4e.ConnectDocumentToLanguageServerSetupParticipant"
+            contentTypeId="org.springframework.boot.ide.properties.application.properties">
+      </participant>
+   </extension>
+   <extension
+         point="org.eclipse.core.filebuffers.documentSetup">
+      <participant
+            class="org.eclipse.lsp4e.ConnectDocumentToLanguageServerSetupParticipant"
+            contentTypeId="org.springframework.boot.ide.properties.application.yml">
+      </participant>
+   </extension>
+   <extension
+         point="org.eclipse.core.filebuffers.documentSetup">
+      <participant
+            class="org.eclipse.lsp4e.ConnectDocumentToLanguageServerSetupParticipant"
+            contentTypeId="org.springframework.boot.ide.xmlconfig">
+      </participant>
+   </extension>
+   -->
 
 </plugin>

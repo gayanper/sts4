@@ -14,13 +14,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.eclipse.lsp4j.SymbolInformation;
-import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,11 +28,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.ide.vscode.boot.app.SpringSymbolIndex;
 import org.springframework.ide.vscode.boot.bootiful.BootLanguageServerTest;
-import org.springframework.ide.vscode.boot.bootiful.SymbolProviderTestConf;
+import org.springframework.ide.vscode.boot.bootiful.XmlBeansTestConf;
 import org.springframework.ide.vscode.boot.java.beans.BeansSymbolAddOnInformation;
 import org.springframework.ide.vscode.boot.java.handlers.SymbolAddOnInformation;
+import org.springframework.ide.vscode.boot.java.utils.SymbolIndexConfig;
 import org.springframework.ide.vscode.commons.java.IJavaProject;
-import org.springframework.ide.vscode.commons.languageserver.java.JavaProjectFinder;
 import org.springframework.ide.vscode.project.harness.BootLanguageServerHarness;
 import org.springframework.ide.vscode.project.harness.ProjectsHarness;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -42,28 +42,33 @@ import org.springframework.test.context.junit4.SpringRunner;
  */
 @RunWith(SpringRunner.class)
 @BootLanguageServerTest
-@Import(SymbolProviderTestConf.class)
+@Import(XmlBeansTestConf.class)
 public class SpringIndexerXMLProjectTest {
 
 	@Autowired private BootLanguageServerHarness harness;
 	@Autowired private SpringSymbolIndex indexer;
-	@Autowired private JavaProjectFinder projectFinder;
+	@Autowired private MockProjectObserver projectObserver;
 
+	private ProjectsHarness projects = ProjectsHarness.INSTANCE;
 	private File directory;
-	private String projectDir;
 	private IJavaProject project;
 
 	@Before
 	public void setup() throws Exception {
 		harness.intialize(null);
-		indexer.configureIndexer(true);
+		indexer.configureIndexer(SymbolIndexConfig.builder()
+				.scanXml(true)
+				.xmlScanFoldersGlobs(new String[] { "**/src/main/**", "**/config" })
+				.build())
+			.get(5, TimeUnit.SECONDS);;
 
-		directory = new File(ProjectsHarness.class.getResource("/test-projects/test-annotation-indexing-xml-project/").toURI());
-		projectDir = directory.toURI().toString();
-
+		project = projects.mavenProject("test-annotation-indexing-xml-project");
+		harness.useProject(project);
+		directory = Paths.get(project.getLocationUri()).toFile();
+		
 		// trigger project creation
-		project = projectFinder.find(new TextDocumentIdentifier(projectDir)).get();
-
+		projectObserver.doWithListeners(l -> l.created(project));
+		
 		CompletableFuture<Void> initProject = indexer.waitOperation();
 		initProject.get(5, TimeUnit.SECONDS);
 	}
@@ -110,6 +115,51 @@ public class SpringIndexerXMLProjectTest {
 		addon = indexer.getAdditonalInformation(beansOnClasspathDocUri);
 		assertEquals(1, addon.size());
 		assertEquals("sb", ((BeansSymbolAddOnInformation)addon.get(0)).getBeanID());
+	}
+	
+	@Test
+	public void testReindexXMLConfig() throws Exception {
+		List<? extends SymbolInformation> allSymbols = indexer.getAllSymbols("");
+		assertEquals(5, allSymbols.size());
+		
+		indexer.configureIndexer(SymbolIndexConfig.builder()
+				.scanXml(true)
+				.build())
+			.get(2, TimeUnit.SECONDS);;
+		allSymbols = indexer.getAllSymbols("");
+		assertEquals(0, allSymbols.size());
+		
+		indexer.configureIndexer(SymbolIndexConfig.builder()
+				.scanXml(true)
+				.xmlScanFoldersGlobs(new String[] {  "**/src/main/**" })
+				.build())
+			.get(2, TimeUnit.SECONDS);
+		allSymbols = indexer.getAllSymbols("");
+		assertEquals(1, allSymbols.size());
+		
+		indexer.configureIndexer(SymbolIndexConfig.builder()
+				.scanXml(true)
+				.xmlScanFoldersGlobs(new String[] { "**/config", "**/src/main/**" })
+				.build())
+			.get(2, TimeUnit.SECONDS);
+		allSymbols = indexer.getAllSymbols("");
+		assertEquals(5, allSymbols.size());
+
+		indexer.configureIndexer(SymbolIndexConfig.builder()
+				.scanXml(true)
+				.xmlScanFoldersGlobs(new String[] { "**/config" })
+				.build())
+			.get(2, TimeUnit.SECONDS);
+		allSymbols = indexer.getAllSymbols("");
+		assertEquals(4, allSymbols.size());
+		
+		indexer.configureIndexer(SymbolIndexConfig.builder()
+				.scanXml(false)
+				.xmlScanFoldersGlobs(new String[] { "**/config", "**/src/main/**" })
+				.build())
+			.get(2, TimeUnit.SECONDS);
+		allSymbols = indexer.getAllSymbols("");
+		assertEquals(0, allSymbols.size());
 	}
 
 	private boolean containsSymbol(List<? extends SymbolInformation> symbols, String name, String uri, int startLine, int startCHaracter, int endLine, int endCharacter) {

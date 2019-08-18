@@ -717,12 +717,13 @@ public class Editor {
 		setText(saveText);
 	}
 
-	public void assertCompletionWithLabel(Predicate<String> expectLabel, String expectedResult) throws Exception {
+	public CompletionItem assertCompletionWithLabel(Predicate<String> expectLabel, String expectedResult) throws Exception {
 		CompletionItem completion = assertCompletionWithLabel(expectLabel);
 		String saveText = getText();
 		apply(completion);
 		assertEquals(expectedResult, getText());
 		setText(saveText);
+		return completion;
 	}
 
 	public void setSelection(int start, int end) {
@@ -749,6 +750,19 @@ public class Editor {
 		List<? extends Location> definitions = harness.getDefinitions(params);
 
 		assertEquals(ImmutableSet.copyOf(expectedLocations), ImmutableSet.copyOf(definitions));
+	}
+	
+	public void assertNoLinkTargets(String hoverOver) throws Exception {
+		int pos = getRawText().indexOf(hoverOver);
+		if (pos>=0) {
+			pos += hoverOver.length() / 2;
+		}
+		assertTrue("Not found in editor: '"+hoverOver+"'", pos>=0);
+
+		TextDocumentPositionParams params = new TextDocumentPositionParams(new TextDocumentIdentifier(getUri()), doc.toPosition(pos));
+		List<? extends Location> definitions = harness.getDefinitions(params);
+
+		assertTrue(definitions == null || definitions.isEmpty());
 	}
 
 	@Deprecated

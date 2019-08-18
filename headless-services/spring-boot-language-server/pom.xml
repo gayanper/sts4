@@ -9,7 +9,7 @@
 	<parent>
 		<groupId>org.springframework.ide.vscode</groupId>
 		<artifactId>commons-parent</artifactId>
-		<version>1.6.0-SNAPSHOT</version>
+		<version>1.11.0-SNAPSHOT</version>
 		<relativePath>../commons/pom.xml</relativePath>
 	</parent>
 
@@ -34,6 +34,11 @@
 	</repositories>
 
 	<dependencies>
+		<dependency>
+			<groupId>org.springframework.ide.vscode</groupId>
+			<artifactId>commons-yaml</artifactId>
+			<version>${dependencies.version}</version>
+		</dependency>
 		<!-- spring boot -->
 		<dependency>
 			<groupId>org.springframework.ide.vscode</groupId>
@@ -50,7 +55,7 @@
 			<!-- Local modified JSON lib packaged to support order in maps -->
 			<groupId>org.springframework.ide.eclipse</groupId>
 			<artifactId>org.json</artifactId>
-			<version>1.0</version>
+			<version>1.0.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.ide.vscode</groupId>
@@ -74,18 +79,13 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.ide.vscode</groupId>
-			<artifactId>commons-yaml</artifactId>
-			<version>${dependencies.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.ide.vscode</groupId>
 			<artifactId>commons-boot-app-cli</artifactId>
 			<version>${dependencies.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.eclipse.jdt</groupId>
 			<artifactId>org.eclipse.jdt.core</artifactId>
-			<version>3.17.0</version>
+			<version>3.18.0</version>
 		</dependency>
 		<dependency>
 			<groupId>commons-io</groupId>
@@ -107,14 +107,18 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
-		<!-- <dependency> <groupId>com.fasterxml</groupId> <artifactId>aalto-xml</artifactId> 
-			<version>1.1.1</version> </dependency> -->
 
 		<!-- Test harness -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>com.vaadin.external.google</groupId>
+					<artifactId>android-json</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.ide.vscode</groupId>
@@ -132,22 +136,13 @@
 	</dependencies>
 	<build>
 		<plugins>
-			<!-- Set source 1.8 -->
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.3</version>
-				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
-				</configuration>
-			</plugin>
 			<!-- Configure fat jar -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
 					<layout>ZIP</layout>
+					<classifier>exec</classifier>
 				</configuration>
 				<executions>
 					<execution>
@@ -168,12 +163,12 @@
 					</excludes>
 				</configuration>
 			</plugin>
-
+			
 			<!-- generate and package license information for included dependencies -->
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>license-maven-plugin</artifactId>
-				<version>1.17</version>
+				<version>1.20</version>
 				<executions>
 					<execution>
 						<id>download-licenses</id>
@@ -183,6 +178,22 @@
 						</goals>
 					</execution>
 				</executions>
+				<configuration>
+					<licenseUrlReplacements>
+						<licenseUrlReplacement>
+							<regexp>http://(.*)</regexp>
+							<replacement>https://$1</replacement>
+						</licenseUrlReplacement>
+					</licenseUrlReplacements>
+					<licenseContentSanitizers>
+						<licenseContentSanitizer>
+							<id>all-http</id>
+							<urlRegexp>http(.*)</urlRegexp>
+							<contentRegexp>http://(.*)</contentRegexp>
+							<contentReplacement>https://$1</contentReplacement>
+						</licenseContentSanitizer>
+					</licenseContentSanitizers>
+				</configuration>
 			</plugin>
 
 			<plugin>
@@ -209,6 +220,7 @@
 			</plugin>
 
 			<plugin>
+		        <groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-resources-plugin</artifactId>
 				<executions>
 					<execution>
@@ -224,6 +236,23 @@
 									<directory>${basedir}</directory>
 									<filtering>true</filtering>
 									<include>LICENSE</include>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+					
+					<execution>
+						<id>copy-license-files</id>
+						<phase>process-classes</phase>
+						<goals>
+							<goal>copy-resources</goal>
+						</goals>
+						<configuration>
+							<outputDirectory>${project.build.outputDirectory}/META-INF/third-party-open-source-licenses/</outputDirectory>
+							<resources>
+								<resource>
+									<directory>${project.build.directory}/generated-resources/licenses</directory>
+									<filtering>false</filtering>
 								</resource>
 							</resources>
 						</configuration>
@@ -245,28 +274,6 @@
 						<configuration>
 							<sourceFile>${project.build.directory}/generated-license-information/licenses.xml</sourceFile>
 							<destinationFile>${project.build.outputDirectory}/META-INF/third-party-open-source-licenses.txt</destinationFile>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-
-			<plugin>
-				<artifactId>maven-resources-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>copy-license-files</id>
-						<phase>process-classes</phase>
-						<goals>
-							<goal>copy-resources</goal>
-						</goals>
-						<configuration>
-							<outputDirectory>${project.build.outputDirectory}/META-INF/third-party-open-source-licenses/</outputDirectory>
-							<resources>
-								<resource>
-									<directory>${project.build.directory}/generated-resources/licenses</directory>
-									<filtering>false</filtering>
-								</resource>
-							</resources>
 						</configuration>
 					</execution>
 				</executions>

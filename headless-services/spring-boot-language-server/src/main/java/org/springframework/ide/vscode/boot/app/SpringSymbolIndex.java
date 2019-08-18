@@ -11,6 +11,7 @@
 package org.springframework.ide.vscode.boot.app;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,6 +20,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -28,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.io.FileUtils;
 import org.eclipse.lsp4j.SymbolInformation;
@@ -48,6 +51,7 @@ import org.springframework.ide.vscode.boot.java.utils.SpringIndexerXMLNamespaceH
 import org.springframework.ide.vscode.boot.java.utils.SpringIndexerXMLNamespaceHandlerBeans;
 import org.springframework.ide.vscode.boot.java.utils.SymbolCache;
 import org.springframework.ide.vscode.boot.java.utils.SymbolHandler;
+import org.springframework.ide.vscode.boot.java.utils.SymbolIndexConfig;
 import org.springframework.ide.vscode.commons.java.IJavaProject;
 import org.springframework.ide.vscode.commons.java.SpringProjectUtil;
 import org.springframework.ide.vscode.commons.languageserver.java.JavaProjectFinder;
@@ -60,6 +64,9 @@ import org.springframework.ide.vscode.commons.util.Futures;
 import org.springframework.ide.vscode.commons.util.StringUtil;
 import org.springframework.ide.vscode.commons.util.text.TextDocument;
 import org.springframework.stereotype.Component;
+
+import com.google.common.base.Supplier;
+import com.google.common.collect.ImmutableList;
 
 /**
  * @author Martin Lippert
@@ -76,17 +83,14 @@ public class SpringSymbolIndex implements InitializingBean {
 	private static final String QUERY_PARAM_LOCATION_PREFIX = "locationPrefix:";
 	private static final int MAX_NUMBER_OF_SYMBOLS_IN_RESPONSE = 50;
 
-	private final List<SymbolInformation> symbols = new ArrayList<>();
-	private final List<SymbolAddOnInformation> addonInformation = new ArrayList<>();
+	private final List<EnhancedSymbolInformation> symbols = new ArrayList<>();
 
-	private final ConcurrentMap<String, List<SymbolInformation>> symbolsByDoc = new ConcurrentHashMap<>();
-	private final ConcurrentMap<String, List<SymbolAddOnInformation>> addonInformationByDoc = new ConcurrentHashMap<>();
+	private final ConcurrentMap<String, List<EnhancedSymbolInformation>> symbolsByDoc = new ConcurrentHashMap<>();
 
-	private final ConcurrentMap<String, List<SymbolInformation>> symbolsByProject = new ConcurrentHashMap<>();
-	private final ConcurrentMap<String, List<SymbolAddOnInformation>> addonInformationByProject = new ConcurrentHashMap<>();
+	private final ConcurrentMap<String, List<EnhancedSymbolInformation>> symbolsByProject = new ConcurrentHashMap<>();
 
 	private final ExecutorService updateQueue = Executors.newSingleThreadExecutor();
-	private SpringIndexer[] indexer;
+	private SpringIndexer[] indexers;
 
 
 	private static final Logger log = LoggerFactory.getLogger(SpringSymbolIndex.class);
@@ -136,14 +140,20 @@ public class SpringSymbolIndex implements InitializingBean {
 			public void addSymbol(IJavaProject project, String docURI, EnhancedSymbolInformation enhancedSymbol) {
 				SpringSymbolIndex.this.addSymbol(project, docURI, enhancedSymbol);
 			}
+
+			@Override
+			public void removeSymbols(IJavaProject project, String docURI) {
+				SpringSymbolIndex.this.removeSymbolsByDoc(project, docURI);
+			}
+			
 		};
 
 		Map<String, SpringIndexerXMLNamespaceHandler> namespaceHandler = new HashMap<>();
 		namespaceHandler.put("http://www.springframework.org/schema/beans", new SpringIndexerXMLNamespaceHandlerBeans());
-		springIndexerXML = new SpringIndexerXML(handler, namespaceHandler, this.cache);
-		springIndexerJava = new SpringIndexerJava(handler, specificProviders, this.cache);
+		springIndexerXML = new SpringIndexerXML(handler, namespaceHandler, this.cache, projectFinder());
+		springIndexerJava = new SpringIndexerJava(handler, specificProviders, this.cache, projectFinder());
 
-		this.indexer = new SpringIndexer[] {springIndexerJava};
+		this.indexers = new SpringIndexer[] {springIndexerJava};
 
 
 		getWorkspaceService().onDidChangeWorkspaceFolders(evt -> {
@@ -162,11 +172,15 @@ public class SpringSymbolIndex implements InitializingBean {
 			if (BootJavaLanguageServerComponents.LANGUAGES.contains(document.getLanguageId())) {
 				String docURI = document.getId().getUri();
 				String content = document.get();
-				this.updateDocument(docURI, content);
+				this.updateDocument(docURI, content, "didSave event");
 			}
 		});
 		config.addListener(evt -> {
-			this.configureIndexer(config.isSpringXMLSupportEnabled());
+			this.configureIndexer(SymbolIndexConfig.builder()
+					.scanXml(config.isSpringXMLSupportEnabled())
+					.xmlScanFoldersGlobs(config.xmlBeansFoldersToScan())
+					.scanTestJavaSources(config.isScanJavaTestSourcesEnabled())
+					.build());
 		});
 		server.doOnInitialized(this::serverInitialized);
 		server.onShutdown(this::shutdown);
@@ -182,15 +196,17 @@ public class SpringSymbolIndex implements InitializingBean {
 			createDocument(new TextDocumentIdentifier(file).getUri());
 		});
 		getWorkspaceService().getFileObserver().onFileChanged(globPattern, (file) -> {
-			updateDocument(new TextDocumentIdentifier(file).getUri(), null);
+			updateDocument(new TextDocumentIdentifier(file).getUri(), null, "file changed");
 		});
 	}
 
-	public void configureIndexer(boolean springXMLSupportEnabled) {
+	public CompletableFuture<Void> configureIndexer(SymbolIndexConfig config) {
+		List<CompletableFuture<?>> futuresList = new ArrayList<>();
 		synchronized (this) {
-			if (springXMLSupportEnabled && !(Arrays.asList(this.indexer).contains(springIndexerXML))) {
-				this.indexer = new SpringIndexer[] {springIndexerJava, springIndexerXML};
-
+			if (config.isScanXml() && !(Arrays.asList(this.indexers).contains(springIndexerXML))) {
+				this.indexers = new SpringIndexer[] {springIndexerJava, springIndexerXML};
+				futuresList.add(CompletableFuture.runAsync(() -> springIndexerXML.setScanFolderGlobs(config.getXmlScanFoldersGlobs())));
+				
 				List<String> globPattern = Arrays.asList(springIndexerXML.getFileWatchPatterns());
 
 				watchXMLDeleteRegistration = getWorkspaceService().getFileObserver().onFileDeleted(globPattern, (file) -> {
@@ -200,12 +216,13 @@ public class SpringSymbolIndex implements InitializingBean {
 					createDocument(new TextDocumentIdentifier(file).getUri());
 				});
 				watchXMLChangedRegistration = getWorkspaceService().getFileObserver().onFileChanged(globPattern, (file) -> {
-					updateDocument(new TextDocumentIdentifier(file).getUri(), null);
+					updateDocument(new TextDocumentIdentifier(file).getUri(), null, "xml changed");
 				});
-
+				
 			}
-			else if (!springXMLSupportEnabled && Arrays.asList(this.indexer).contains(springIndexerXML)) {
-				this.indexer = new SpringIndexer[] {springIndexerJava};
+			else if (!config.isScanXml() && Arrays.asList(this.indexers).contains(springIndexerXML)) {
+				this.indexers = new SpringIndexer[] {springIndexerJava};
+				futuresList.add(CompletableFuture.runAsync(() -> springIndexerXML.setScanFolderGlobs(new String[0])));
 
 				getWorkspaceService().getFileObserver().unsubscribe(watchXMLChangedRegistration);
 				getWorkspaceService().getFileObserver().unsubscribe(watchXMLCreatedRegistration);
@@ -214,8 +231,12 @@ public class SpringSymbolIndex implements InitializingBean {
 				watchXMLChangedRegistration = null;
 				watchXMLCreatedRegistration = null;
 				watchXMLDeleteRegistration = null;
+			} else if (config.isScanXml()) {
+				futuresList.add(CompletableFuture.runAsync(() -> springIndexerXML.setScanFolderGlobs(config.getXmlScanFoldersGlobs())));
 			}
+			futuresList.add(CompletableFuture.runAsync(() -> springIndexerJava.setScanTestJavaSources(config.isScanTestJavaSources())));
 		}
+		return CompletableFuture.allOf(futuresList.toArray(new CompletableFuture<?>[futuresList.size()]));
 	}
 
 	public void shutdown() {
@@ -246,9 +267,9 @@ public class SpringSymbolIndex implements InitializingBean {
 					removeSymbolsByProject(project);
 
 					@SuppressWarnings("unchecked")
-					CompletableFuture<Void>[] futures = new CompletableFuture[this.indexer.length];
-					for (int i = 0; i < this.indexer.length; i++) {
-						InitializeProject initializeItem = new InitializeProject(project, this.indexer[i]);
+					CompletableFuture<Void>[] futures = new CompletableFuture[this.indexers.length];
+					for (int i = 0; i < this.indexers.length; i++) {
+						InitializeProject initializeItem = new InitializeProject(project, this.indexers[i]);
 						futures[i] = CompletableFuture.runAsync(initializeItem, this.updateQueue);
 					}
 
@@ -263,6 +284,10 @@ public class SpringSymbolIndex implements InitializingBean {
 		}
 	}
 
+	public SpringIndexerJava getJavaIndexer() {
+		return springIndexerJava;
+	}
+	
 	public CompletableFuture<Void> deleteProject(IJavaProject project) {
 		try {
 			if (project.getElementName() == null) {
@@ -270,7 +295,7 @@ public class SpringSymbolIndex implements InitializingBean {
 				log.debug("Project with NULL name is being removed");
 				return CompletableFuture.completedFuture(null);
 			} else {
-				DeleteProject initializeItem = new DeleteProject(project, this.indexer);
+				DeleteProject initializeItem = new DeleteProject(project, this.indexers);
 				return CompletableFuture.runAsync(initializeItem, this.updateQueue);
 			}
 		} catch (Throwable  e) {
@@ -283,7 +308,7 @@ public class SpringSymbolIndex implements InitializingBean {
 		synchronized(this) {
 			List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-			for (SpringIndexer indexer : this.indexer) {
+			for (SpringIndexer indexer : this.indexers) {
 				if (indexer.isInterestedIn(docURI)) {
 					Optional<IJavaProject> maybeProject = projectFinder().find(new TextDocumentIdentifier(docURI));
 
@@ -291,10 +316,15 @@ public class SpringSymbolIndex implements InitializingBean {
 						try {
 							File file = new File(new URI(docURI));
 							long lastModified = file.lastModified();
-							String content = FileUtils.readFileToString(file);
-
-							UpdateItem updateItem = new UpdateItem(maybeProject.get(), docURI, lastModified, content, indexer);
-							futures.add(CompletableFuture.runAsync(updateItem, this.updateQueue));
+							Supplier<String> content = () -> {
+								try {
+									return FileUtils.readFileToString(file);
+								} catch (IOException e) {
+									log.error("{}", e);
+									return "";
+								}
+							};
+							futures.add(updateItem(maybeProject.get(), docURI, lastModified, content, indexer));
 						}
 						catch (Exception e) {
 							log.error("", e);
@@ -312,24 +342,33 @@ public class SpringSymbolIndex implements InitializingBean {
 		return params.projectFinder;
 	}
 
-	public CompletableFuture<Void> updateDocument(String docURI, String content) {
+	public CompletableFuture<Void> updateDocument(String docURI, String content, String reason) {
+		log.info("Update document [{}]: {}",reason, docURI);
 		synchronized(this) {
 			List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-			for (SpringIndexer indexer : this.indexer) {
+			for (SpringIndexer indexer : this.indexers) {
 				if (indexer.isInterestedIn(docURI)) {
 					Optional<IJavaProject> maybeProject = projectFinder().find(new TextDocumentIdentifier(docURI));
 					if (maybeProject.isPresent()) {
 						try {
 							File file = new File(new URI(docURI));
 							long lastModified = file.lastModified();
+							
+							Supplier<String> contentSupplier = () -> {
+								if (content == null) {
+									try {
+										return FileUtils.readFileToString(file);
+									} catch (IOException e) {
+										log.error("{}", e);
+										return "";
+									}
+								} else {
+									return content;
+								}
+							};
 
-							if (content == null) {
-								content = FileUtils.readFileToString(file);
-							}
-
-							UpdateItem updateItem = new UpdateItem(maybeProject.get(), docURI, lastModified, content, indexer);
-							futures.add(CompletableFuture.runAsync(updateItem, this.updateQueue));
+							futures.add(updateItem(maybeProject.get(), docURI, lastModified, contentSupplier, indexer));
 						}
 						catch (Exception e) {
 							log.error("{}", e);
@@ -346,7 +385,7 @@ public class SpringSymbolIndex implements InitializingBean {
 			try {
 				Optional<IJavaProject> maybeProject = projectFinder().find(new TextDocumentIdentifier(deletedDocURI));
 				if (maybeProject.isPresent()) {
-					DeleteItem deleteItem = new DeleteItem(maybeProject.get(), deletedDocURI, this.indexer);
+					DeleteItem deleteItem = new DeleteItem(maybeProject.get(), deletedDocURI, this.indexers);
 					return CompletableFuture.runAsync(deleteItem, this.updateQueue);
 				}
 			}
@@ -366,17 +405,26 @@ public class SpringSymbolIndex implements InitializingBean {
 			}
 		} else {
 			synchronized(this.symbols) {
-				List<SymbolInformation> subList = this.symbols.subList(0, Math.min(MAX_NUMBER_OF_SYMBOLS_IN_RESPONSE, this.symbols.size()));
-				return new ArrayList<SymbolInformation>(subList);
+				return this.symbols.stream().map(s -> s.getSymbol()).limit(Math.min(MAX_NUMBER_OF_SYMBOLS_IN_RESPONSE, this.symbols.size())).collect(Collectors.toList());
 			}
 		}
 	}
+	
+	public Stream<SymbolInformation> getSymbols(Predicate<EnhancedSymbolInformation> filter) {
+		return symbols.parallelStream()
+			.filter(filter)
+			.map(enhanced -> enhanced.getSymbol());
+	}
 
 	public List<? extends SymbolInformation> getSymbols(String docURI) {
-		List<SymbolInformation> docSymbols = this.symbolsByDoc.get(docURI);
+		List<EnhancedSymbolInformation> docSymbols = this.symbolsByDoc.get(docURI);
 		if (docSymbols != null) {
 			synchronized(docSymbols) {
-				return new ArrayList<SymbolInformation>(docSymbols);
+				ImmutableList.Builder<SymbolInformation> builder = ImmutableList.builder();
+				for (EnhancedSymbolInformation enhanced : docSymbols) {
+					builder.add(enhanced.getSymbol());
+				}
+				return builder.build();
 			}
 		}
 		else {
@@ -386,8 +434,13 @@ public class SpringSymbolIndex implements InitializingBean {
 
 	public List<SymbolAddOnInformation> getAllAdditionalInformation(Predicate<SymbolAddOnInformation> filter) {
 		if (filter != null) {
-			synchronized(addonInformation) {
-				return addonInformation.stream().filter(filter).collect(Collectors.toList());
+			synchronized(symbols) {
+				return symbols.stream()
+						.map(s -> s.getAdditionalInformation())
+						.filter(Objects::nonNull)
+						.flatMap(i -> Arrays.stream(i))
+						.filter(filter)
+						.collect(Collectors.toList());
 			}
 		}
 		else {
@@ -396,11 +449,18 @@ public class SpringSymbolIndex implements InitializingBean {
 	}
 
 	public List<? extends SymbolAddOnInformation> getAdditonalInformation(String docURI) {
-		List<SymbolAddOnInformation> info = this.addonInformationByDoc.get(docURI);
+		List<EnhancedSymbolInformation> info = this.symbolsByDoc.get(docURI);
 
 		if (info != null) {
 			synchronized(info) {
-				return new ArrayList<>(info);
+				ImmutableList.Builder<SymbolAddOnInformation> builder = ImmutableList.builder();
+				for (EnhancedSymbolInformation enhanced : info) {
+					SymbolAddOnInformation[] additionalInformation = enhanced.getAdditionalInformation();
+					if (additionalInformation != null) {
+						builder.add(additionalInformation);
+					}
+				}
+				return builder.build();
 			}
 		}
 		else {
@@ -421,7 +481,7 @@ public class SpringSymbolIndex implements InitializingBean {
 		}, this.updateQueue);
 	}
 
-	private List<SymbolInformation> searchMatchingSymbols(List<SymbolInformation> allsymbols, String query, int maxNumberOfSymbolsInResponse) {
+	private List<SymbolInformation> searchMatchingSymbols(List<EnhancedSymbolInformation> allsymbols, String query, int maxNumberOfSymbolsInResponse) {
 		long limit = maxNumberOfSymbolsInResponse;
 		String locationPrefix = "";
 
@@ -447,6 +507,7 @@ public class SpringSymbolIndex implements InitializingBean {
 		String finalLocationPrefix = locationPrefix;
 
 		return allsymbols.stream()
+				.map(enhanced -> enhanced.getSymbol())
 				.filter(symbol -> symbol.getLocation().getUri().startsWith(finalLocationPrefix))
 				.filter(symbol -> StringUtil.containsCharactersCaseInsensitive(symbol.getName(), finalQuery))
 				.limit(limit)
@@ -485,31 +546,17 @@ public class SpringSymbolIndex implements InitializingBean {
 		}
 	}
 
-	private class UpdateItem implements Runnable {
-
-		private final String docURI;
-		private final String content;
-		private final IJavaProject project;
-		private final SpringIndexer indexer;
-		private final long lastModified;
-
-		public UpdateItem(IJavaProject project, String docURI, long lastModified, String content, SpringIndexer indexer) {
-			this.project = project;
-			this.docURI = docURI;
-			this.lastModified = lastModified;
-			this.content = content;
-			this.indexer = indexer;
-		}
-
-		@Override
-		public void run() {
+	CompletableFuture<Void> updateItem(IJavaProject project, String docURI, long lastModified, Supplier<String> content, SpringIndexer indexer) {
+		log.debug("scheduling updateItem {}. {},  {}, {}", project.getElementName(), docURI, lastModified, indexer);
+		return CompletableFuture.runAsync(() -> {
+			log.debug("updateItem {}. {},  {}, {}", project.getElementName(), docURI, lastModified, indexer);
 			try {
 				removeSymbolsByDoc(project, docURI);
 				indexer.updateFile(project, docURI, lastModified, content);
 			} catch (Exception e) {
 				log.error("{}", e);
 			}
-		}
+		}, this.updateQueue);
 	}
 
 	private class DeleteItem implements Runnable {
@@ -566,41 +613,25 @@ public class SpringSymbolIndex implements InitializingBean {
 
 	private void addSymbol(IJavaProject project, String docURI, EnhancedSymbolInformation enhancedSymbol) {
 		synchronized(this.symbols) {
-			symbols.add(enhancedSymbol.getSymbol());
+			symbols.add(enhancedSymbol);
 		}
 
-		List<SymbolInformation> docSymbols = symbolsByDoc.computeIfAbsent(docURI, s -> new ArrayList<SymbolInformation>());
+		List<EnhancedSymbolInformation> docSymbols = symbolsByDoc.computeIfAbsent(docURI, s -> new ArrayList<EnhancedSymbolInformation>());
 		synchronized(docSymbols) {
-			docSymbols.add(enhancedSymbol.getSymbol());
+			docSymbols.add(enhancedSymbol);
 		}
 
-		List<SymbolInformation> projectSymbols = symbolsByProject.computeIfAbsent(project.getElementName(), s -> new ArrayList<SymbolInformation>());
+		List<EnhancedSymbolInformation> projectSymbols = symbolsByProject.computeIfAbsent(project.getElementName(), s -> new ArrayList<EnhancedSymbolInformation>());
 		synchronized(projectSymbols) {
-			projectSymbols.add(enhancedSymbol.getSymbol());
-		}
-
-		if (enhancedSymbol.getAdditionalInformation() != null) {
-			synchronized(addonInformation) {
-				addonInformation.addAll(Arrays.asList(enhancedSymbol.getAdditionalInformation()));
-			}
-
-			List<SymbolAddOnInformation> infoByDoc = addonInformationByDoc.computeIfAbsent(docURI, s -> new ArrayList<SymbolAddOnInformation>());
-			synchronized(infoByDoc) {
-				infoByDoc.addAll(Arrays.asList(enhancedSymbol.getAdditionalInformation()));
-			}
-
-			List<SymbolAddOnInformation> infoByProject = addonInformationByProject.computeIfAbsent(project.getElementName(), s -> new ArrayList<SymbolAddOnInformation>());
-			synchronized(infoByProject) {
-				infoByProject.addAll(Arrays.asList(enhancedSymbol.getAdditionalInformation()));
-			}
+			projectSymbols.add(enhancedSymbol);
 		}
 	}
 
 	private void removeSymbolsByDoc(IJavaProject project, String docURI) {
-		List<SymbolInformation> oldSymbols = symbolsByDoc.remove(docURI);
+		List<EnhancedSymbolInformation> oldSymbols = symbolsByDoc.remove(docURI);
 		if (oldSymbols != null) {
 
-			List<SymbolInformation> copy = null;
+			List<EnhancedSymbolInformation> copy = null;
 			synchronized(oldSymbols) {
 				copy = new ArrayList<>(oldSymbols);
 			}
@@ -609,7 +640,7 @@ public class SpringSymbolIndex implements InitializingBean {
 				this.symbols.removeAll(copy);
 			}
 
-			List<SymbolInformation> projectSymbols = symbolsByProject.get(project.getElementName());
+			List<EnhancedSymbolInformation> projectSymbols = symbolsByProject.get(project.getElementName());
 			if (projectSymbols != null) {
 				synchronized(projectSymbols) {
 					projectSymbols.removeAll(copy);
@@ -617,25 +648,6 @@ public class SpringSymbolIndex implements InitializingBean {
 			}
 		}
 
-		List<SymbolAddOnInformation> oldAddOnInformation = addonInformationByDoc.remove(docURI);
-		if (oldAddOnInformation != null) {
-
-			List<SymbolAddOnInformation> copy = null;
-			synchronized(oldAddOnInformation) {
-				copy = new ArrayList<>(oldAddOnInformation);
-			}
-
-			synchronized(addonInformation) {
-				addonInformation.removeAll(copy);
-			}
-
-			List<SymbolAddOnInformation> projectAddOns = addonInformationByProject.get(project.getElementName());
-			if (projectAddOns != null) {
-				synchronized(projectAddOns) {
-					projectAddOns.removeAll(copy);
-				}
-			}
-		}
 	}
 
 	private void removeSymbolsByProject(IJavaProject project) {
@@ -643,10 +655,10 @@ public class SpringSymbolIndex implements InitializingBean {
 		if (project.getElementName() == null) {
 			return;
 		}
-		List<SymbolInformation> oldSymbols = symbolsByProject.remove(project.getElementName());
+		List<EnhancedSymbolInformation> oldSymbols = symbolsByProject.remove(project.getElementName());
 		if (oldSymbols != null) {
 
-			List<SymbolInformation> copy = null;
+			List<EnhancedSymbolInformation> copy = null;
 			synchronized(oldSymbols) {
 				copy = new ArrayList<>(oldSymbols);
 			}
@@ -659,7 +671,7 @@ public class SpringSymbolIndex implements InitializingBean {
 			Iterator<String> docIter = keySet.iterator();
 			while (docIter.hasNext()) {
 				String docURI = docIter.next();
-				List<SymbolInformation> docSymbols = symbolsByDoc.get(docURI);
+				List<EnhancedSymbolInformation> docSymbols = symbolsByDoc.get(docURI);
 				synchronized(docSymbols) {
 					docSymbols.removeAll(copy);
 
@@ -670,32 +682,5 @@ public class SpringSymbolIndex implements InitializingBean {
 			}
 		}
 
-		List<SymbolAddOnInformation> oldAddInInformation = addonInformationByProject.remove(project.getElementName());
-		if (oldAddInInformation != null) {
-
-			List<SymbolAddOnInformation> copy = null;
-			synchronized(oldAddInInformation) {
-				copy = new ArrayList<>(oldAddInInformation);
-			}
-
-			synchronized(this.addonInformation) {
-				addonInformation.removeAll(copy);
-			}
-
-			Set<String> keySet = addonInformationByDoc.keySet();
-			Iterator<String> docIter = keySet.iterator();
-			while (docIter.hasNext()) {
-				String docURI = docIter.next();
-				List<SymbolAddOnInformation> docAddons = addonInformationByDoc.get(docURI);
-
-				synchronized(docAddons) {
-					docAddons.removeAll(copy);
-
-					if (docAddons.isEmpty()) {
-						docIter.remove();
-					}
-				}
-			}
-		}
 	}
 }

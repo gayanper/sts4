@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2017, 2018 Pivotal, Inc.
+ * Copyright (c) 2017, 2019 Pivotal, Inc.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.eclipse.core.runtime.preferences.IEclipsePreferences;
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.bindings.Binding;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.keys.IBindingService;
@@ -29,7 +31,7 @@ import org.springsource.ide.eclipse.commons.livexp.core.LiveSetVariable;
  */
 public class BootLanguageServerPlugin extends AbstractUIPlugin {
 	
-	public static final String ID = "org.springframework.tooling.boot.java.ls";
+	public static final String PLUGIN_ID = "org.springframework.tooling.boot.java.ls";
 
 	private static final Object LSP4E_COMMAND_SYMBOL_IN_WORKSPACE = "org.eclipse.lsp4e.symbolinworkspace";
 	
@@ -40,12 +42,16 @@ public class BootLanguageServerPlugin extends AbstractUIPlugin {
 		// Empty
 	}
 
+	public static IEclipsePreferences getPreferences() {
+		return InstanceScope.INSTANCE.getNode(PLUGIN_ID);
+	}
+
 	@Override
 	public void start(BundleContext context) throws Exception {
 		plugin = this;
 		super.start(context);
 		deactivateDuplicateKeybindings();
-		BootLanguageServerPreferencesPage.manageCodeMiningPreferences();
+		BootJavaPreferencesPage.manageCodeMiningPreferences();
 	}
 
 	@Override

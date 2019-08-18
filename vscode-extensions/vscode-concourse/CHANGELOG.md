@@ -1,3 +1,22 @@
+## 2019-08-13 (4.3.2 RELEASE)
+
+* _(Concourse)_ fixed: VS Code Extensions missing Cloud Foundry params options ([#330](https://github.com/spring-projects/sts4/issues/330))
+* _(Concourse)_ fixed: Snippet completions in vscode-concourse not working
+* _(VSCode)_ fixed: Spring boot tool vscode extension is causing system to run out of disk space ([#328](https://github.com/spring-projects/sts4/issues/328))
+
+## 2019-07-12 (4.3.1 RELEASE)
+
+* _(all language servers)_ performance: further improvements to the language server startup time
+
+## 2019-06-21 (4.3.0 RELEASE)
+
+- _(Concourse)_ fixed: Added support for `vars` property in task step ([#307](https://github.com/spring-projects/sts4/issues/307))
+
+## 2019-05-24 (4.2.2 RELEASE)
+
+* _(all language servers)_ performance: additional improvements to language server startup time
+* _(Concourse)_ fixed: Concourse VSCode Does not recognize "initial_path" param for S3 resource ([#284](https://github.com/spring-projects/sts4/issues/284))
+
 ## 2019-04-18 (4.2.1 RELEASE)
 
 * _(VSCode, Atom, Theia)_ improvement: JVM args can now be configured for language server processes

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?pde version="3.5"?>
-<product name="Spring Tool Suite 4" id="org.springframework.boot.ide.branding.sts4" uid="org.springframework.boot.ide.branding.sts4" application="org.eclipse.ui.ide.workbench" version="4.2.1.qualifier" useFeatures="true" includeLaunchers="true">
+<product name="Spring Tool Suite 4" id="org.springframework.boot.ide.branding.sts4" uid="org.springframework.boot.ide.branding.sts4" application="org.eclipse.ui.ide.workbench" version="4.4.0.qualifier" useFeatures="true" includeLaunchers="true">
 
    <configIni use="default">
    </configIni>
@@ -93,12 +93,10 @@
 
       <feature id="org.springframework.boot.ide.branding.feature"/>
       <feature id="org.springframework.boot.ide.main.feature" installMode="root"/>
+      <feature id="org.springframework.ide.eclipse.xml.namespaces.feature" installMode="root"/>
 
       <feature id="org.springframework.tooling.boot.ls.feature" installMode="root"/>
-
-      <feature id="org.springframework.tooling.cloudfoundry.manifest.ls.integration.feature" installMode="root"/>
       <feature id="org.springframework.tooling.cloudfoundry.manifest.ls.feature" installMode="root"/>
-
       <feature id="org.springframework.tooling.bosh.ls.feature" installMode="root"/>
       <feature id="org.springframework.tooling.concourse.ls.feature" installMode="root"/>
    </features>

@@ -3,7 +3,7 @@
   "displayName": "Bosh Editor",
   "description": "Provides validation and content assist for various Bosh configuration files",
   "icon": "icon.png",
-  "version": "1.6.0",
+  "version": "1.11.0",
   "publisher": "Pivotal",
   "repository": {
     "type": "git",
@@ -64,6 +64,13 @@
       "type": "object",
       "title": "Bosh CLI Configuration",
       "properties": {
+        "bosh.ls.logfile": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The path of a file to write language server logs. If not set or null, then logs are discarded."
+        },
         "bosh.ls.java.heap": {
           "type": [
             "string",
@@ -127,6 +134,6 @@
     "vsce": "^1.36.1",
     "typescript": "2.6.1",
     "@types/node": "^7.0.43",
-    "vscode": "^1.1.22"
+    "vscode": "^1.1.33"
   }
 }

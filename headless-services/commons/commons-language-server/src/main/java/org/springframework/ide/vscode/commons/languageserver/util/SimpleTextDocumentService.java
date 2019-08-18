@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2016, 2018 Pivotal, Inc.
+ * Copyright (c) 2016, 2019 Pivotal, Inc.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -10,6 +10,7 @@
  *******************************************************************************/
 package org.springframework.ide.vscode.commons.languageserver.util;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,6 +41,7 @@ import org.eclipse.lsp4j.DocumentSymbol;
 import org.eclipse.lsp4j.DocumentSymbolParams;
 import org.eclipse.lsp4j.Hover;
 import org.eclipse.lsp4j.Location;
+import org.eclipse.lsp4j.LocationLink;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ReferenceParams;
@@ -58,6 +60,7 @@ import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.TextDocumentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ide.vscode.commons.languageserver.config.LanguageServerProperties;
 import org.springframework.ide.vscode.commons.languageserver.quickfix.Quickfix;
 import org.springframework.ide.vscode.commons.util.Assert;
 import org.springframework.ide.vscode.commons.util.AsyncRunner;
@@ -69,14 +72,18 @@ import org.springframework.ide.vscode.commons.util.text.TextDocument;
 
 import com.google.common.collect.ImmutableList;
 
+import reactor.core.publisher.Mono;
+
 public class SimpleTextDocumentService implements TextDocumentService, DocumentEventListenerManager {
 
 	private static Logger log = LoggerFactory.getLogger(SimpleTextDocumentService.class);
-
+	
 	final private SimpleLanguageServer server;
+	final private LanguageServerProperties props;
 	private Map<String, TrackedDocument> documents = new HashMap<>();
 	private ListenerList<TextDocumentContentChange> documentChangeListeners = new ListenerList<>();
 	private ListenerList<TextDocument> documentCloseListeners = new ListenerList<>();
+	private ListenerList<TextDocument> documentOpenListeners = new ListenerList<>();
 
 	private CompletionHandler completionHandler = null;
 	private CompletionResolveHandler completionResolveHandler = null;
@@ -95,8 +102,9 @@ public class SimpleTextDocumentService implements TextDocumentService, DocumentE
 	private AsyncRunner async;
 
 
-	public SimpleTextDocumentService(SimpleLanguageServer server) {
+	public SimpleTextDocumentService(SimpleLanguageServer server, LanguageServerProperties props) {
 		this.server = server;
+		this.props = props;
 		this.async = server.getAsync();
 	}
 
@@ -182,11 +190,15 @@ public class SimpleTextDocumentService implements TextDocumentService, DocumentE
 		//Log.info("didOpen: "+params.getTextDocument().getUri());
 		LanguageId languageId = LanguageId.of(docId.getLanguageId());
 		int version = docId.getVersion();
-		if (url!=null) {
+		if (url != null) {
+
 			String text = params.getTextDocument().getText();
 			TrackedDocument td = createDocument(url, languageId, version, text).open();
-			log.debug("Opened "+td.getOpenCount()+" times: "+url);
+			log.debug("Opened " + td.getOpenCount() + " times: " + url);
 			TextDocument doc = td.getDocument();
+
+			documentOpenListeners.fire(doc);
+
 			TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent() {
 				@Override
 				public Range getRange() {
@@ -239,6 +251,10 @@ public class SimpleTextDocumentService implements TextDocumentService, DocumentE
 		documentChangeListeners.fire(new TextDocumentContentChange(doc, changes));
 	}
 
+	public void onDidOpen(Consumer<TextDocument> l) {
+		documentOpenListeners.add(l);
+	}
+
 	public void onDidChangeContent(Consumer<TextDocumentContentChange> l) {
 		documentChangeListeners.add(l);
 	}
@@ -284,7 +300,6 @@ public class SimpleTextDocumentService implements TextDocumentService, DocumentE
 
 	@Override
 	public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(CompletionParams position) {
-		log.info("completion request received");
 		CompletionHandler h = completionHandler;
 		if (h!=null) {
 			return completionHandler.handle(position)
@@ -313,13 +328,25 @@ public class SimpleTextDocumentService implements TextDocumentService, DocumentE
 
 	@Override
 	public CompletableFuture<Hover> hover(TextDocumentPositionParams position) {
-	  return async.invoke(() -> {
-		HoverHandler h = hoverHandler;
-		if (h!=null) {
-			return hoverHandler.handle(position);
+		log.debug("hover requested for {}", position);
+		long timeout = props.getHoverTimeout();
+		return timeout <= 0 ? async.invoke(() -> computeHover(position)) : async.invoke(Duration.ofMillis(timeout), () -> computeHover(position), Mono.fromRunnable(() -> {
+			log.error("Hover Request handler timed out after {} ms.", timeout);
+		}));
+	}
+	
+	private Hover computeHover(TextDocumentPositionParams position) {
+		try {
+			log.debug("hover handler starting");
+			HoverHandler h = hoverHandler;
+			if (h!=null) {
+				return hoverHandler.handle(position);
+			}
+			log.debug("no hover because there is no handler");
+			return null;
+		} finally {
+			log.debug("hover handler finished");
 		}
-		return null;
-	  });
 	}
 
 	@Override
@@ -328,14 +355,21 @@ public class SimpleTextDocumentService implements TextDocumentService, DocumentE
 	}
 
 	@Override
-	public CompletableFuture<List<? extends Location>> definition(TextDocumentPositionParams position) {
-	  return async.invoke(() -> {
+	public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definition(
+			TextDocumentPositionParams position) {
+
 		DefinitionHandler h = this.definitionHandler;
-		if (h!=null) {
-			return h.handle(position);
+		if (h != null) {
+			return async.invoke(() -> {
+				List<Location> locations = h.handle(position);
+				if (locations==null) {
+					// vscode client does not like to recieve null result. See: https://github.com/spring-projects/sts4/issues/309
+					locations = ImmutableList.of();
+				}
+				return Either.forLeft(locations);
+			});
 		}
-		return Collections.emptyList();
-	  });
+		return CompletableFuture.completedFuture(Either.forLeft(ImmutableList.of()));
 	}
 
 	@Override
@@ -464,7 +498,7 @@ public class SimpleTextDocumentService implements TextDocumentService, DocumentE
 		}
 	}
 
-	public void setQuickfixes(TextDocumentIdentifier docId, List<Quickfix> quickfixes) {
+	public void setQuickfixes(TextDocumentIdentifier docId, List<Quickfix<?>> quickfixes) {
 		TrackedDocument td = documents.get(docId.getUri());
 		if (td!=null) {
 			td.setQuickfixes(quickfixes);

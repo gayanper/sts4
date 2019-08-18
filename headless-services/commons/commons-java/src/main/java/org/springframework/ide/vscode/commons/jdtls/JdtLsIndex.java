@@ -23,7 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ide.vscode.commons.java.ClasspathIndex;
 import org.springframework.ide.vscode.commons.java.IJavaModuleData;
-import org.springframework.ide.vscode.commons.java.IJavaProject;
 import org.springframework.ide.vscode.commons.java.IType;
 import org.springframework.ide.vscode.commons.java.JavaUtils;
 import org.springframework.ide.vscode.commons.javadoc.JdtLsJavadocProvider;
@@ -65,31 +64,23 @@ public class JdtLsIndex implements ClasspathIndex {
 
 	final private Cache<JavaTypeHierarchyParams, CompletableFuture<List<IType>>> supertypesCache = CacheBuilder.newBuilder().expireAfterAccess(10, TimeUnit.SECONDS).build();
 	final private Cache<JavaTypeHierarchyParams, CompletableFuture<List<IType>>> subtypesCache = CacheBuilder.newBuilder().expireAfterAccess(10, TimeUnit.SECONDS).build();
-
-	final private Listener projectListener = new Listener() {
-
-		@Override
-		public void deleted(IJavaProject project) {
-			// ignore
-		}
-
-		@Override
-		public void created(IJavaProject project) {
-			// ignore
-		}
-
-		@Override
-		public void changed(IJavaProject project) {
-			binaryTypeCache.invalidateAll();
-			sourceTypeCache.invalidateAll();
-		}
-	};
+	
+	final private Listener projectListener;
 
 	public JdtLsIndex(STS4LanguageClient client, URI projectUri, ProjectObserver projectObserver) {
 		this.client = client;
 		this.projectUri = projectUri;
 		this.projectObserver = projectObserver;
 		this.javadocProvider = new JdtLsJavadocProvider(client, projectUri.toString());
+		
+		this.projectListener = ProjectObserver.onAny(project -> {
+			if (Objects.equals(project.getLocationUri(), projectUri)) {
+				binaryTypeCache.invalidateAll();
+				sourceTypeCache.invalidateAll();
+				supertypesCache.invalidateAll();
+				subtypesCache.invalidateAll();
+			}
+		});
 
 		this.projectObserver.addListener(projectListener);
 	}
@@ -111,14 +102,9 @@ public class JdtLsIndex implements ClasspathIndex {
 		return Wrappers.wrap(data, Suppliers.memoize(() -> findType(data.getFqName())), Suppliers.memoize(() -> declaringTypeFqName == null ? null : findType(declaringTypeFqName)), javadocProvider);
 	}
 
-	private TypeData findTypeData(String fqName) {
+	private TypeData findTypeData(String fqName) throws InterruptedException, ExecutionException {
 		JavaDataParams params = new JavaDataParams(projectUri.toString(), "L" + fqName.replace('.', '/') + ";", false);
-		try {
-			return client.javaType(params).get();
-		} catch (InterruptedException | ExecutionException e) {
-			log.error("", e);
-		}
-		return null;
+		return client.javaType(params).get();
 	}
 
 	@Override
@@ -129,17 +115,21 @@ public class JdtLsIndex implements ClasspathIndex {
 		}
 
 		if (type == null) {
-			TypeData data = findTypeData(fqName);
-			if (data == null) {
-				type = Optional.empty();
-				sourceTypeCache.put(fqName, type);
-			} else {
-				type = Optional.of(toType(data));
-				if (Classpath.isBinary(data.getClasspathEntry().getCpe())) {
-					binaryTypeCache.put(fqName, type);
-				} else {
+			try {
+				TypeData data = findTypeData(fqName);
+				if (data == null) {
+					type = Optional.empty();
 					sourceTypeCache.put(fqName, type);
+				} else {
+					type = Optional.of(toType(data));
+					if (Classpath.isBinary(data.getClasspathEntry().getCpe())) {
+						binaryTypeCache.put(fqName, type);
+					} else {
+						sourceTypeCache.put(fqName, type);
+					}
 				}
+			} catch (Exception e) {
+				log.error("{}", e);
 			}
 		}
 		return type.orElse(null);

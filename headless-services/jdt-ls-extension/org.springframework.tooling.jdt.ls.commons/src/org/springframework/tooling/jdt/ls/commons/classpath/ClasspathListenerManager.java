@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2018 Pivotal, Inc.
+ * Copyright (c) 2019 Pivotal, Inc.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -10,13 +10,18 @@
  *******************************************************************************/
 package org.springframework.tooling.jdt.ls.commons.classpath;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.function.Supplier;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceChangeListener;
+import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
-import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jdt.core.ElementChangedEvent;
 import org.eclipse.jdt.core.IElementChangedListener;
 import org.eclipse.jdt.core.IJavaElement;
@@ -34,15 +39,33 @@ import org.springframework.tooling.jdt.ls.commons.Logger;
  */
 public class ClasspathListenerManager {
 
+	Queue<Runnable> workQueue = new ConcurrentLinkedQueue<>();
+	
+	Job worker = new Job("Processing JDT Change Events") {
+		{
+			setSystem(true);
+		}
+		
+		@Override
+		protected IStatus run(IProgressMonitor monitor) {
+			while (!workQueue.isEmpty()) {
+				workQueue.remove().run();
+			}
+			return Status.OK_STATUS;
+		}
+	};
+
 	public interface ClasspathListener {
-		public abstract void classpathChanged(IJavaProject jp);
+		void classpathChanged(IJavaProject jp);
+		default void projectBuilt(IJavaProject jp) {}; 
 	}
 
 	private class MyListener implements IElementChangedListener {
 
 		@Override
 		public void elementChanged(ElementChangedEvent event) {
-			visit(event.getDelta());
+			workQueue.add(() -> visit(event.getDelta()));
+			worker.schedule();
 		}
 
 		private void visit(IJavaElementDelta delta) {
@@ -85,12 +108,31 @@ public class ClasspathListenerManager {
 	private ClasspathListener listener;
 	private MyListener myListener;
 	private final Logger logger;
+	
+	private IResourceChangeListener workspaceListener = (event) -> {
+		if (event.getSource() instanceof IProject) {
+			projectBuilt((IProject) event.getSource());
+		} else if (event.getSource() instanceof IWorkspace) {
+			for (IProject p : ((IWorkspace)event.getSource()).getRoot().getProjects()) {
+				projectBuilt(p);
+			}
+		}
+	};
 
 	public ClasspathListenerManager(Logger logger, ClasspathListener listener) {
 		this.logger = logger;
 		logger.log("Setting up ClasspathListenerManager");
 		this.listener = listener;
 		JavaCore.addElementChangedListener(myListener=new MyListener(), ElementChangedEvent.POST_CHANGE);
+		final IWorkspace workspace = ResourcesPlugin.getWorkspace();
+		workspace.addResourceChangeListener(workspaceListener, IResourceChangeEvent.POST_BUILD);
+	}
+	
+	private void projectBuilt(IProject project) {
+		IJavaProject jp = JavaCore.create(project);
+		if (jp != null) {
+			listener.projectBuilt(jp);
+		}
 	}
 
 	public void dispose() {
@@ -98,6 +140,7 @@ public class ClasspathListenerManager {
 			JavaCore.removeElementChangedListener(myListener);
 			myListener = null;
 		}
+		ResourcesPlugin.getWorkspace().removeResourceChangeListener(workspaceListener);
 	}
 
 }

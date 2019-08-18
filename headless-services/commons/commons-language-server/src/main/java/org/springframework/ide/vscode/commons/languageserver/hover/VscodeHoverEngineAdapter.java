@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ide.vscode.commons.languageserver.util.HoverHandler;
 import org.springframework.ide.vscode.commons.languageserver.util.SimpleLanguageServer;
 import org.springframework.ide.vscode.commons.languageserver.util.SimpleTextDocumentService;
+import org.springframework.ide.vscode.commons.util.Log;
 import org.springframework.ide.vscode.commons.util.Renderable;
 import org.springframework.ide.vscode.commons.util.StringUtil;
 import org.springframework.ide.vscode.commons.util.text.IRegion;
@@ -40,7 +41,7 @@ public class VscodeHoverEngineAdapter implements HoverHandler {
 	private HoverInfoProvider hoverInfoProvider;
 	private SimpleLanguageServer server;
 	private HoverType type;
-	final static Logger logger = LoggerFactory.getLogger(VscodeHoverEngineAdapter.class);
+	final static Logger log = LoggerFactory.getLogger(VscodeHoverEngineAdapter.class);
 
 
 	public VscodeHoverEngineAdapter(SimpleLanguageServer server, HoverInfoProvider hoverInfoProvider) {
@@ -60,9 +61,6 @@ public class VscodeHoverEngineAdapter implements HoverHandler {
 
 	@Override
 	public Hover handle(TextDocumentPositionParams params) {
-		//TODO: This returns a CompletableFuture which suggests we should try to do expensive work asyncly.
-		// We are currently just doing all this in a blocking way and wrapping the already computed list into
-		// a trivial pre-resolved future.
 		try {
 			SimpleTextDocumentService documents = server.getTextDocumentService();
 			TextDocument doc = documents.get(params);
@@ -79,11 +77,17 @@ public class VscodeHoverEngineAdapter implements HoverHandler {
 					if (StringUtil.hasText(rendered)) {
 						Hover hover = new Hover(ImmutableList.of(Either.forLeft(rendered)), range);
 						return hover;
+					} else {
+						log.debug("No hover because rendered hover has no text");
 					}
+				} else {
+					log.debug("No hover because hoverInfoProvider returned no hover");
 				}
+			} else {
+				log.debug("No hover because doc is null");
 			}
 		} catch (Exception e) {
-			logger.error("error computing hover", e);
+			log.error("error computing hover", e);
 		}
 		return SimpleTextDocumentService.NO_HOVER;
 	}

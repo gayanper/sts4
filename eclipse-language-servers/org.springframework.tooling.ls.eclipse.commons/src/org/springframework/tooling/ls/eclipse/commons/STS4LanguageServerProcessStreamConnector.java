@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2017, 2018 Pivotal, Inc.
+ * Copyright (c) 2017, 2019 Pivotal, Inc.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -14,12 +14,20 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.UUID;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.eclipse.core.runtime.Assert;
+import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.lsp4e.server.ProcessStreamConnectionProvider;
+import org.osgi.framework.Bundle;
 import org.springframework.tooling.ls.eclipse.commons.console.ConsoleUtil.Console;
 import org.springframework.tooling.ls.eclipse.commons.console.LanguageServerConsoles;
 import org.springframework.tooling.ls.eclipse.commons.preferences.LanguageServerConsolePreferenceConstants.ServerInfo;
@@ -27,14 +35,17 @@ import org.springsource.ide.eclipse.commons.core.util.IOUtil;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Supplier;
+import com.google.common.collect.ImmutableList;
 
-public class STS4LanguageServerProcessStreamConnector extends ProcessStreamConnectionProvider {
+public abstract class STS4LanguageServerProcessStreamConnector extends ProcessStreamConnectionProvider {
 
 	private static LanguageServerProcessReaper processReaper = new LanguageServerProcessReaper();
 
 	private Supplier<Console> consoles = null;
+	private String connectorId;
 
 	public STS4LanguageServerProcessStreamConnector(ServerInfo server) {
+		this.connectorId = server.bundleId;
 		this.consoles = LanguageServerConsoles.getConsoleFactory(server);
 	}
 
@@ -42,29 +53,79 @@ public class STS4LanguageServerProcessStreamConnector extends ProcessStreamConne
 	public void start() throws IOException {
 		super.start();
 		Process process = LanguageServerProcessReaper.getProcess(this);
-		processReaper.addProcess(process);
+		processReaper.addProcess(connectorId, process);
 		if (consoles!=null) {
 			Console console = consoles.get();
 			if (console!=null) {
 				forwardTo(getLanguageServerLog(), console.out);
 			} else {
-
-				Job job = new Job("Consume LS error stream") {
-
+				new Thread("Consume LS error stream") {
 					@Override
-					protected IStatus run(IProgressMonitor monitor) {
+					public void run() {
 						try {
 							IOUtil.consume(getLanguageServerLog());
 						} catch (IOException e) {
 							// ignore
 						}
-						return Status.OK_STATUS;
 					}
-
-				};
-				job.setSystem(true);
-				job.schedule();
+				}.start();
 			}
+		}
+	}
+
+	protected JRE getJRE() {
+		return JRE.currentJRE();
+	}
+
+	protected final void initExplodedJarCommand(Path lsFolder, String mainClass, String configFileName, List<String> extraVmArgs) {
+		try {
+			Bundle bundle = Platform.getBundle(getPluginId());
+			JRE runtime = getJRE();
+
+			Assert.isNotNull(lsFolder);
+			Assert.isNotNull(mainClass);
+
+			ImmutableList.Builder<String> command = ImmutableList.builder();
+
+			command.add(runtime.getJavaExecutable());
+			command.add("-cp");
+
+			File bundleFile = FileLocator.getBundleFile(bundle);
+
+			File bundleRoot = bundleFile.getAbsoluteFile();
+			Path languageServerRoot = bundleRoot.toPath().resolve(lsFolder);
+
+			StringBuilder classpath = new StringBuilder();
+			classpath.append(languageServerRoot.resolve("BOOT-INF/classes").toFile());
+			classpath.append(File.pathSeparator);
+			classpath.append(languageServerRoot.resolve("BOOT-INF/lib").toFile());
+			// Cannot have * in the java.nio.Path on Windows
+			classpath.append(File.separator);
+			classpath.append('*');
+
+			if (runtime.toolsJar != null) {
+				classpath.append(File.pathSeparator);
+				classpath.append(runtime.toolsJar);
+			}
+
+			command.add(classpath.toString());
+
+			command.add("-Dsts.lsp.client=eclipse");
+
+			command.addAll(extraVmArgs);
+
+			if (configFileName != null) {
+				command.add("-Dspring.config.location=file:" + languageServerRoot.resolve("BOOT-INF/classes").resolve(configFileName).toFile());
+			}
+
+			command.add(mainClass);
+
+			command.add("--languageserver.hover-timeout=225");
+
+			setCommands(command.build());
+		}
+		catch (Exception e) {
+			LanguageServerCommonsActivator.logError(e, "Failed to assemble exploded LS JAR launch command");
 		}
 	}
 
@@ -86,12 +147,11 @@ public class STS4LanguageServerProcessStreamConnector extends ProcessStreamConne
 			protected IStatus run(IProgressMonitor arg0) {
 				try {
 					pipe(is, os);
-					os.write("==== Process Terminated====\n".getBytes(Charsets.UTF_8));
 				} catch (IOException e) {
-					e.printStackTrace();
 				}
 				finally {
 					try {
+						os.write("==== Process Terminated====\n".getBytes(Charsets.UTF_8));
 						os.close();
 					} catch (IOException e) {
 					}
@@ -131,5 +191,7 @@ public class STS4LanguageServerProcessStreamConnector extends ProcessStreamConne
 	protected String getWorkingDirLocation() {
 		return System.getProperty("user.dir");
 	}
+
+	protected abstract String getPluginId();
 
 }

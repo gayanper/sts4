@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>org.springframework.boot.ide</groupId>
 		<artifactId>org.springframework.boot.ide</artifactId>
-		<version>4.2.1-SNAPSHOT</version>
+		<version>4.4.0-SNAPSHOT</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
@@ -269,7 +269,7 @@
 								<taskdef resource="net/sf/antcontrib/antcontrib.properties" />
 								<taskdef resource="org/springframework/build/aws/ant/antlib.xml" />
 
-								<copy file="${project.build.directory}/../../common/html/nightly-generic-snippet.html" tofile="${project.build.directory}/../../common/html/sts4-nightly-${dist.target.major}.html"/>
+								<copy file="${project.build.directory}/../../common/html/nightly-generic-snippet.html" tofile="${project.build.directory}/../../common/html/sts4-nightly-${dist.target.major}.html" overwrite="true"/>
 		
 								<replace file="${project.build.directory}/../../common/html/sts4-nightly-${dist.target.major}.html" token="@QUALIFIER@" value="${unqualifiedVersion}.${p2.qualifier}" summary="yes" />
 								<replace file="${project.build.directory}/../../common/html/sts4-nightly-${dist.target.major}.html" token="@TARGET@" value="${dist.target}" summary="yes" />

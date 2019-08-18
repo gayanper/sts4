@@ -32,8 +32,6 @@ import org.springframework.ide.vscode.commons.util.FuzzyMatcher;
 import org.springframework.ide.vscode.commons.util.Renderable;
 import org.springframework.ide.vscode.commons.util.text.TextDocument;
 
-import reactor.util.function.Tuple2;
-import reactor.util.function.TupleExtensionsKt;
 import reactor.util.function.Tuples;
 
 /**
@@ -76,18 +74,18 @@ public class BeanRefCompletionProposalProvider implements XMLCompletionProvider 
 				.filter(beanID -> beanID != null && beanID.length() > 0)
 				.map(beanID -> Tuples.of(beanID, FuzzyMatcher.matchScore(searchPrefix, beanID)))
 				.filter(tuple -> tuple.getT2() != 0.0)
-				.map(tuple -> createProposal(tuple.getT1(), doc, offset, tokenOffset, tokenEnd, tuple.getT2()))
+				.map(tuple -> createProposal(tuple.getT1(), doc, offset, searchPrefix, tuple.getT2()))
 				.collect(Collectors.toList());
 		};
 
 		return Collections.emptyList();
 	}
 
-	private ICompletionProposal createProposal(String beanID, TextDocument doc, int offset, int tokenStart, int tokenEnd, Double score) {
+	private ICompletionProposal createProposal(String beanID, TextDocument doc, int offset, String prefix, Double score) {
 		CompletionItemKind kind = CompletionItemKind.Reference;
 
-		DocumentEdits edits = new DocumentEdits(doc);
-		edits.replace(tokenStart, tokenEnd, "\"" + beanID + "\"");
+		DocumentEdits edits = new DocumentEdits(doc, false);
+		edits.replace(offset - prefix.length(), offset, beanID);
 
 		Renderable renderable = null;
 

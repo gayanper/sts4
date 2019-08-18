@@ -55,9 +55,10 @@ public final class ManifestYmlSchema implements YamlSchema {
 	private final YAtomicType t_application_name;
 
 	private ImmutableList<YType> definitionTypes = null;
+	public final YTypeFactory f;
 
 	private static final Set<String> TOPLEVEL_EXCLUDED = ImmutableSet.of(
-		"name", "host", "hosts", "routes"
+		"name", "host", "hosts", "routes", "docker"
 	);
 
 	@Override
@@ -107,7 +108,7 @@ public final class ManifestYmlSchema implements YamlSchema {
 		Callable<Collection<YValueHint>> stacksProvider = providers.getStacksProvider();
 
 
-		YTypeFactory f = new YTypeFactory();
+		f = new YTypeFactory();
 		TYPE_UTIL = f.TYPE_UTIL;
 
 		// define schema types
@@ -176,7 +177,7 @@ public final class ManifestYmlSchema implements YamlSchema {
 				.build();
 
 		YAtomicType t_strictly_pos_integer = f.yatomic("Strictly Positive Integer");
-		t_strictly_pos_integer.parseWith(ManifestYmlValueParsers.integerAtLeast(1));
+		t_strictly_pos_integer.parseWith(ValueParsers.integerAtLeast(1));
 
 		YAtomicType t_pos_integer = f.yatomic("Positive Integer");
 		t_pos_integer.parseWith(ManifestYmlValueParsers.POS_INTEGER);
@@ -189,6 +190,10 @@ public final class ManifestYmlSchema implements YamlSchema {
 
 		AbstractType t_host = f.yatomic("Host").parseWith(ValueParsers.NE_STRING);
 
+		YType t_docker = f.ybean("Docker", 
+				f.yprop("image", t_ne_string).isRequired(true).setDescriptionProvider(descriptionFor("docker")),
+				f.yprop("username", t_ne_string).setDescriptionProvider(descriptionFor("docker"))
+		);
 		YTypedPropertyImpl[] props = {
 			f.yprop("buildpack", t_buildpack),
 			//TODO: replace the above with the below to make 'buildpack' deprecated once we have proper support for `buildpacks` in cf push.
@@ -197,12 +202,13 @@ public final class ManifestYmlSchema implements YamlSchema {
 			f.yprop("buildpacks", f.yseq(t_buildpack)),
 			f.yprop("command", t_string),
 			f.yprop("disk_quota", t_memory),
+			f.yprop("docker", t_docker),
 			f.yprop("domain", t_domain),
 			f.yprop("domains", f.yseq(t_domain)),
 			f.yprop("env", t_env),
 			f.yprop("host", t_ne_string),
 			f.yprop("hosts", f.yseq(t_host)),
-			f.yprop("instances", t_strictly_pos_integer),
+			f.yprop("instances", t_pos_integer),
 			f.yprop("memory", t_memory),
 			f.yprop("name", t_application_name).isRequired(true),
 			f.yprop("no-hostname", t_boolean),
@@ -221,10 +227,15 @@ public final class ManifestYmlSchema implements YamlSchema {
 		for (YTypedPropertyImpl prop : props) {
 			prop.setDescriptionProvider(descriptionFor(prop));
 			if (!TOPLEVEL_EXCLUDED.contains(prop.getName())) {
-				TOPLEVEL_TYPE.addProperty(prop);
+				TOPLEVEL_TYPE.addProperty(prop.copy()
+						.isDeprecated("Use of toplevel properties is deprecated: Instead, use Yaml anchors (&) and extend (<<) to define and re-use shared defaults")
+				);
 			}
 			application.addProperty(prop);
 		}
+		application.require(Constraints.mutuallyExclusive("docker", "path"));
+		application.require(Constraints.mutuallyExclusive("docker", "buildpack"));
+		application.require(Constraints.mutuallyExclusive("docker", "buildpacks"));
 	}
 
 	private Renderable descriptionFor(String propName) {

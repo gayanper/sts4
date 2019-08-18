@@ -17,13 +17,16 @@ import java.net.URI;
 import java.nio.file.FileSystems;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.Assert;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.util.IPropertyChangeListener;
 import org.eclipse.lsp4e.server.StreamConnectionProvider;
 import org.eclipse.lsp4j.DidChangeConfigurationParams;
@@ -31,8 +34,10 @@ import org.eclipse.lsp4j.InitializeResult;
 import org.eclipse.lsp4j.jsonrpc.messages.Message;
 import org.eclipse.lsp4j.jsonrpc.messages.ResponseMessage;
 import org.eclipse.lsp4j.services.LanguageServer;
+import org.springframework.tooling.boot.ls.prefs.RemoteAppsPrefs;
 import org.springframework.tooling.ls.eclipse.commons.LanguageServerCommonsActivator;
 import org.springsource.ide.eclipse.commons.livexp.core.ValueListener;
+import org.springsource.ide.eclipse.commons.livexp.ui.Disposable;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -48,7 +53,7 @@ import com.google.common.collect.ImmutableSet;
  * @author Martin Lippert
  */
 public class DelegatingStreamConnectionProvider implements StreamConnectionProvider {
-	
+
 	private StreamConnectionProvider provider;
 	private ResourceListener fResourceListener;
 	private LanguageServer languageServer;
@@ -58,6 +63,7 @@ public class DelegatingStreamConnectionProvider implements StreamConnectionProvi
 	
 	private long timestampBeforeStart;
 	private long timestampWhenInitialized;
+	private Disposable remoteAppsPrefsListener;
 	
 	public DelegatingStreamConnectionProvider() {
 		LanguageServerCommonsActivator.logInfo("Entering DelegatingStreamConnectionProvider()");
@@ -82,6 +88,7 @@ public class DelegatingStreamConnectionProvider implements StreamConnectionProvi
 	public void start() throws IOException {
 		this.timestampBeforeStart = System.currentTimeMillis();
 		this.provider.start();
+		this.remoteAppsPrefsListener = RemoteAppsPrefs.addListener(this::sendConfiguration);
 	}
 
 	@Override
@@ -108,6 +115,10 @@ public class DelegatingStreamConnectionProvider implements StreamConnectionProvi
 		}
 		BootLanguageServerPlugin.getDefault().getPreferenceStore().removePropertyChangeListener(configListener);
 		BootLanguageServerPlugin.getRemoteBootApps().removeListener(remoteAppsListener);
+		if (remoteAppsPrefsListener!=null) {
+			remoteAppsPrefsListener.dispose();
+			remoteAppsPrefsListener = null;
+		}
 	}
 
 	@Override
@@ -143,38 +154,60 @@ public class DelegatingStreamConnectionProvider implements StreamConnectionProvi
 	}
 	
 	public class RemoteBootAppData {
+		
 		private String jmxurl;
 		private String host;
 		private String urlScheme = "https";
 		private String port = "443";
+		private boolean keepChecking = true; 
+			//keepChecking defaults to true. Boot dash automatic remote apps should override this explicitly.
+			//Reason. All other 'sources' of remote apps are 'manual' and we want them to default to
+			//'keepChecking' even if the user doesn't set this to true manually.
+
 		public RemoteBootAppData(String jmxurl, String host) {
 			super();
 			this.jmxurl = jmxurl;
 			this.host = host;
 		}
+
 		public String getJmxurl() {
 			return jmxurl;
 		}
+
 		public void setJmxurl(String jmxurl) {
 			this.jmxurl = jmxurl;
 		}
+
 		public String getHost() {
 			return host;
 		}
+
 		public void setHost(String host) {
 			this.host = host;
 		}
+
 		public String getUrlScheme() {
 			return urlScheme;
 		}
+
 		public void setUrlScheme(String urlScheme) {
 			this.urlScheme = urlScheme;
 		}
+
 		public String getPort() {
 			return port;
 		}
+
 		public void setPort(String port) {
 			this.port = port;
+		}
+		
+		public boolean isKeepChecking() {
+			return keepChecking;
+		}
+		
+		public void setKeepChecking(boolean keepChecking) {
+			this.keepChecking = keepChecking;
 		}
 	}
 	
@@ -184,24 +217,44 @@ public class DelegatingStreamConnectionProvider implements StreamConnectionProvi
 		Map<String, Object> bootHint = new HashMap<>();
 		Map<String, Object> supportXML = new HashMap<>();
 		Map<String, Object> bootChangeDetection = new HashMap<>();
+		Map<String, Object> scanTestJavaSources = new HashMap<>();
 
-		bootHint.put("on", BootLanguageServerPlugin.getDefault().getPreferenceStore().getBoolean(Constants.PREF_BOOT_HINTS));
-		supportXML.put("on", BootLanguageServerPlugin.getDefault().getPreferenceStore().getBoolean(Constants.PREF_SUPPORT_SPRING_XML_CONFIGS));
-		bootChangeDetection.put("on", BootLanguageServerPlugin.getDefault().getPreferenceStore().getBoolean(Constants.PREF_CHANGE_DETECTION));
+		IPreferenceStore preferenceStore = BootLanguageServerPlugin.getDefault().getPreferenceStore();
+		bootHint.put("on", preferenceStore.getBoolean(Constants.PREF_BOOT_HINTS));
+		supportXML.put("on", preferenceStore.getBoolean(Constants.PREF_SUPPORT_SPRING_XML_CONFIGS));
+		supportXML.put("scan-folders-globs", preferenceStore.getString(Constants.PREF_XML_CONFIGS_SCAN_FOLDERS));
+		supportXML.put("hyperlinks", preferenceStore.getString(Constants.PREF_XML_CONFIGS_HYPERLINKS));
+		supportXML.put("content-assist", preferenceStore.getString(Constants.PREF_XML_CONFIGS_CONTENT_ASSIST));
+		bootChangeDetection.put("on", preferenceStore.getBoolean(Constants.PREF_CHANGE_DETECTION));
+		scanTestJavaSources.put("on", preferenceStore.getBoolean(Constants.PREF_SCAN_JAVA_TEST_SOURCES));
 
 		bootJavaObj.put("boot-hints", bootHint);
 		bootJavaObj.put("support-spring-xml-config", supportXML);
 		bootJavaObj.put("change-detection", bootChangeDetection);
+		bootJavaObj.put("scan-java-test-sources", scanTestJavaSources);
 
-		bootJavaObj.put("remote-apps", BootLanguageServerPlugin.getRemoteBootApps().getValues()
-				.stream()
-				.map(this::parseData)
-				.collect(Collectors.toList())
+		bootJavaObj.put("remote-apps", getAllRemoteApps()
 		);
 
 		settings.put("boot-java", bootJavaObj);
 
 		this.languageServer.getWorkspaceService().didChangeConfiguration(new DidChangeConfigurationParams(settings));
+	}
+
+	/**
+	 * Combines remote boot app data from all configuration sources.
+	 */
+	protected List<RemoteBootAppData> getAllRemoteApps() {
+		ImmutableSet<Object> fromBootDash = BootLanguageServerPlugin.getRemoteBootApps().getValues();
+		List<List<String>> fromUserPrefs = new RemoteAppsPrefs().getRemoteAppData();
+		
+		Set<Object> combined = new LinkedHashSet<>();
+		combined.addAll(fromBootDash);
+		combined.addAll(fromUserPrefs);
+		return combined
+				.stream()
+				.map(this::parseData)
+				.collect(Collectors.toList());
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -226,6 +279,11 @@ public class DelegatingStreamConnectionProvider implements StreamConnectionProvi
 				if (urlScheme!=null) {
 					app.setUrlScheme(urlScheme);
 				}
+			}
+			//keepChecking attribute added in STS 4.2.1
+			if (list.size()>=5) {
+				String keepChecking = list.get(4);
+				app.setKeepChecking("true".equals(keepChecking));
 			}
 			return app;
 		}

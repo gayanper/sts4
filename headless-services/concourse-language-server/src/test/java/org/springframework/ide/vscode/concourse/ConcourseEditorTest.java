@@ -27,8 +27,10 @@ import java.util.stream.Collectors;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
+import org.eclipse.lsp4j.InsertTextFormat;
 import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +46,7 @@ import org.springframework.ide.vscode.languageserver.testharness.CodeAction;
 import org.springframework.ide.vscode.languageserver.testharness.Editor;
 import org.springframework.ide.vscode.languageserver.testharness.LanguageServerHarness;
 import org.springframework.ide.vscode.languageserver.testharness.SynchronizationPoint;
+import org.springframework.test.annotation.Repeat;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import com.google.common.collect.ImmutableList;
@@ -63,6 +66,9 @@ public class ConcourseEditorTest {
 
 	@MockBean
 	private GithubInfoProvider github;
+	
+	@Rule
+	public LogTestStartAndEnd startAndEndLogger = new LogTestStartAndEnd();
 
 	@Before public void setup() throws Exception {
 		serverInitializer.setMaxCompletions(100);
@@ -308,6 +314,9 @@ public class ConcourseEditorTest {
 				, // ==============
 				"get: <*>"
 				, // ==============
+				"in_parallel:\n" +
+				"    - <*>"
+				, // ==============
 				"put: <*>"
 				, // ==============
 				"task: <*>"
@@ -344,6 +353,8 @@ public class ConcourseEditorTest {
 				"  - do: []\n" +
 				"  - aggregate:\n" +
 				"    - task: perform-something\n" +
+				"  - in_parallel:\n" +
+				"    - task: perform-something\n" +
 				"  - try:\n" +
 				"      put: test-logs\n"
 		);
@@ -351,6 +362,7 @@ public class ConcourseEditorTest {
 		editor.assertHoverContains("get", "Fetches a resource");
 		editor.assertHoverContains("put", "Pushes to the given [Resource]");
 		editor.assertHoverContains("aggregate", "Performs the given steps in parallel");
+		editor.assertHoverContains("in_parallel", "Performs the given steps in parallel");
 		editor.assertHoverContains("task", "Executes a [Task]");
 		editor.assertHoverContains("do", "performs the given steps serially");
 		editor.assertHoverContains("try", "Performs the given step, swallowing any failure");
@@ -363,6 +375,7 @@ public class ConcourseEditorTest {
 				"- name: some-job\n" +
 				"  plan:\n" +
 				"  - put: something\n" +
+				"    inputs: []\n" +
 				"    resource: something\n" +
 				"    params:\n" +
 				"      some_param: some_value\n" +
@@ -370,6 +383,7 @@ public class ConcourseEditorTest {
 				"      skip_download: true\n"
 		);
 
+		editor.assertHoverContains("inputs", "only the listed artifacts will be provided to the container");
 		editor.assertHoverContains("resource", "The resource to update");
 		editor.assertHoverContains("params", "A map of arbitrary configuration");
 		editor.assertHoverContains("get_params", "A map of arbitrary configuration to forward to the resource that will be utilized during the implicit `get` step");
@@ -454,7 +468,9 @@ public class ConcourseEditorTest {
 				"    image: some-image\n" +
 				"    params:\n" +
 				"      map: of-stuff\n" +
-				"    input_mapping:\n" +
+				"    vars:\n" +
+				"      map: of-stuff\n" +
+ 				"    input_mapping:\n" +
 				"      map: of-stuff\n" +
 				"    output_mapping:\n" +
 				"      map: of-stuff\n" +
@@ -473,11 +489,42 @@ public class ConcourseEditorTest {
 		editor.assertHoverContains("privileged", "If set to `true`, the task will run with full capabilities");
 		editor.assertHoverContains("image", "Names an artifact source within the plan");
 		editor.assertHoverContains("params", "A map of task parameters to set, overriding those configured in `config` or `file`");
+		editor.assertHoverContains("vars", "A map of template variables to pass to an external task");
 		editor.assertHoverContains("input_mapping", "A map from task input names to concrete names in the build plan");
 		editor.assertHoverContains("output_mapping", "A map from task output names to concrete names");
 		editor.assertHoverContains("config", "Use `config` to inline the task config");
 		editor.assertHoverContains("tags", "Any step can be directed at a pool of workers");
 		editor.assertHoverContains("timeout", "amount of time to limit the step's execution");
+	}
+	
+	@Test
+	public void taskVarsReconcile() throws Exception {
+		Editor editor;
+		
+		editor = harness.newEditor(
+				"jobs:\n" +
+				"- name: some-job-with-external-task\n" +
+				"  plan:\n" +
+				"  - task: do-something\n" +
+				"    file: some-file.yml\n" +
+				"    vars:\n" +
+				"      foo: bar\n"
+		);
+		editor.assertProblems(/*NONE*/);
+		
+		editor = harness.newEditor(
+				"jobs:\n" +
+				"- name: some-job-internal-task\n" +
+				"  plan:\n" +
+				"  - task: do-something\n" +
+				"    config: some-config\n" +
+				"    vars: not-a-map"
+		);
+		editor.assertProblems(
+				"some-config|Expecting a 'Map'",
+				"vars|assumes that 'file' is also defined",
+				"not-a-map|Expecting a 'Map'"
+		);
 	}
 
 	@Test
@@ -493,6 +540,21 @@ public class ConcourseEditorTest {
 		);
 
 		editor.assertHoverContains("aggregate", "Performs the given steps in parallel");
+	}
+
+	@Test
+	public void inParallelStepHovers() throws Exception {
+		Editor editor;
+
+		editor = harness.newEditor(
+				"jobs:\n" +
+				"- name: some-job\n" +
+				"  plan:\n" +
+				"  - in_parallel:\n" +
+				"    - get: some-resource\n"
+		);
+
+		editor.assertHoverContains("in_parallel", "Performs the given steps in parallel");
 	}
 
 	@Test
@@ -513,7 +575,7 @@ public class ConcourseEditorTest {
 		);
 		editor.assertProblems(
 				"boohoo|boolean",
-				"-1|must be positive",
+				"-1|must be at least 0",
 				"git|resource does not exist",
 				"yohoho|boolean",
 				"0|must be at least 1",
@@ -1338,7 +1400,7 @@ public class ConcourseEditorTest {
 				"      clean_tags: not-bool-d\n"
 		);
 		editor.assertProblems(
-				"-1|must be positive",
+				"-1|must be at least 0",
 				"not-bool-a|'boolean'",
 				"not-bool-b|'boolean'",
 				"not-bool-c|'boolean'",
@@ -1518,6 +1580,25 @@ public class ConcourseEditorTest {
 		editor.assertHoverContains("submodules", "If `none`, submodules will not be fetched");
 		editor.assertHoverContains("disable_git_lfs", "will not fetch Git LFS files");
 	}
+	
+	@Test
+	public void putStepInputsReconcile() throws Exception {
+		//See: https://github.com/spring-projects/sts4/issues/341
+		Editor editor = harness.newEditor(
+				"resources:\n" +
+				"- name: my-git\n" +
+				"  type: git\n" +
+				"  source:\n" +
+				"    uri: https://example.com/my-name/my-repo.git\n" +
+				"    branch: master\n" +
+				"jobs:\n" +
+				"- name: do-stuff\n" +
+				"  plan:\n" +
+				"  - put: my-git\n" +
+				"    inputs: not-a-list\n"
+		);
+		editor.assertProblems("not-a-list|Expecting a 'Sequence'");
+	}
 
 	@Test
 	public void contentAssistJobNames() throws Exception {
@@ -1565,6 +1646,7 @@ public class ConcourseEditorTest {
 				"resources:\n" +
 				"- name: sts4\n" +
 				"  type: git\n" +
+				"  icon: foo\n" + 
 				"  check_every: 5m\n" +
 				"  webhook_token: bladayadayaaa\n" +
 				"  source:\n" +
@@ -1573,6 +1655,7 @@ public class ConcourseEditorTest {
 
 		editor.assertHoverContains("name", "The name of the resource");
 		editor.assertHoverContains("type", "The type of the resource. Each worker advertises");
+  	editor.assertHoverContains("icon", "name of a [Material Design Icon]");
 		editor.assertHoverContains("source", 2, "The location of the resource");
 		editor.assertHoverContains("webhook_token", "web hooks can be sent to trigger an immediate *check* of the resource");
 		editor.assertHoverContains("check_every", "The interval on which to check for new versions");
@@ -1884,6 +1967,45 @@ public class ConcourseEditorTest {
 		editor.assertHoverContains("target_name", "Specify the name of the target build stage");
 	}
 
+	@Test public void s3ResourceSourceInitialResourceImplications() throws Exception {
+		Editor editor;
+		
+		// 'initial_path' => 'regexp' 
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: s3-snapshots\n" +
+				"  type: s3\n" +
+				"  source:\n" +
+				"    bucket: the-bucket\n" +
+				"    access_key_id: the-access-key\n" +
+				"    secret_access_key: the-secret-key\n" +
+				"    versioned_file: path/to/file.tar.gz\n" +
+				"    initial_path: whatever\n"
+		);
+		editor.assertProblems(
+				"s3-snapshots|Unused",
+				"initial_path|Property 'initial_path' assumes that 'regexp' is also defined"
+		);
+		
+		// 'initial_version' => 'versioned_file' 
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: s3-snapshots\n" +
+				"  type: s3\n" +
+				"  source:\n" +
+				"    bucket: the-bucket\n" +
+				"    access_key_id: the-access-key\n" +
+				"    secret_access_key: the-secret-key\n" +
+				"    regexp: path/to/file.tar.gz\n" +
+				"    initial_version: whatever\n"
+		);
+		editor.assertProblems(
+				"s3-snapshots|Unused",
+				"initial_version|Property 'initial_version' assumes that 'versioned_file' is also defined"
+		);
+
+	}
+
 	@Test public void s3ResourceSourceReconcileAndHovers() throws Exception {
 		Editor editor;
 
@@ -1920,7 +2042,11 @@ public class ConcourseEditorTest {
 				"    sse_kms_key_id: the-master-key-id\n" +
 				"    use_v2_signing: should-use-v2\n" +
 				"    regexp: path-to-file-(.*).tar.gz\n" +
-				"    versioned_file: path/to/file.tar.gz\n"
+				"    versioned_file: path/to/file.tar.gz\n" +
+				"    initial_path: some/initial/path\n" +
+				"    initial_version: 0.0.0\n" +
+				"    initial_content_text: some-initial-text\n" +
+				"    initial_content_binary: some-base64-stuff\n"
 		);
 		editor.assertProblems(
 				"s3-snapshots|Unused 'Resource'",
@@ -1931,7 +2057,13 @@ public class ConcourseEditorTest {
 				"skipping-downloading|'boolean'",
 				"should-use-v2|'boolean'",
 				"regexp|Only one of [regexp, versioned_file] should be defined",
-				"versioned_file|Only one of [regexp, versioned_file] should be defined"
+				"versioned_file|Only one of [regexp, versioned_file] should be defined",
+				
+				"initial_path|Only one of 'initial_path' and 'initial_version' should be defined",
+				"initial_version|Only one of 'initial_path' and 'initial_version' should be defined",
+				
+				"initial_content_text|Only one of 'initial_content_text' and 'initial_content_binary' should be defined",
+				"initial_content_binary|Only one of 'initial_content_text' and 'initial_content_binary' should be defined"
 		);
 
 		editor.assertHoverContains("bucket", "The name of the bucket");
@@ -1950,6 +2082,10 @@ public class ConcourseEditorTest {
 		editor.assertHoverContains("use_v2_signing", "Use signature v2 signing");
 		editor.assertHoverContains("regexp", "The pattern to match filenames against within S3");
 		editor.assertHoverContains("versioned_file", "If you enable versioning for your S3 bucket");
+		editor.assertHoverContains("initial_path", "the file path containing the initial version");
+		editor.assertHoverContains("initial_version", "the resource version");
+		editor.assertHoverContains("initial_content_text", "Initial content as a string");
+		editor.assertHoverContains("initial_content_binary", "base64 encoded string");
 	}
 
 	@Test public void s3ResourceRegionCompletions() throws Exception {
@@ -3430,6 +3566,7 @@ public class ConcourseEditorTest {
 		editor.assertCompletionLabels(
 				//For the 'exact' context:
 				"check_every",
+				"icon",
 				"tags",
 				"webhook_token",
 				//"name", exists
@@ -3652,10 +3789,12 @@ public class ConcourseEditorTest {
 				"→ privileged",
 				"→ tags",
 				"→ timeout",
+				"→ vars",
 				//Completions with '-'
 				"- aggregate",
 				"- do",
 				"- get",
+				"- in_parallel",
 				"- put",
 				"- task",
 				"- try",
@@ -4085,6 +4224,22 @@ public class ConcourseEditorTest {
 				"  - aggregate:\n" +
 				"    - <*>"
 		);
+		
+		editor = harness.newEditor(
+				"jobs:\n" +
+				"- name: build-docker-image\n" +
+				"  serial: true\n" +
+				"  plan:\n" +
+				"  in_"
+		);
+		editor.assertCompletionWithLabel("- in_parallel",
+				"jobs:\n" +
+				"- name: build-docker-image\n" +
+				"  serial: true\n" +
+				"  plan:\n" +
+				"  - in_parallel:\n" +
+				"    - <*>"
+		);
 	}
 
 	@Test public void relaxedContentAssist_primary_properties() throws Exception{
@@ -4249,6 +4404,24 @@ public class ConcourseEditorTest {
 		);
 		editor.assertProblems(/*NONE*/);
 	}
+	
+	@Test public void cfResourceTypeCompletion() throws Exception {
+		Editor editor = harness.newEditor(
+				"resources:\n" +
+				"- name: foo\n" +
+				"  type: <*>"
+		);
+		CompletionItem item = editor.assertCompletionWithLabel(label -> label.startsWith("cf"), 
+				"resources:\n" + 
+				"- name: foo\n" + 
+				"  type: cf\n" + 
+				"  source:\n" + 
+				"    api: $1\n" + 
+				"    organization: $2\n" + 
+				"    space: $3<*>"
+		);
+		assertEquals(InsertTextFormat.Snippet, item.getInsertTextFormat());
+	}
 
 	@Test public void cfResourceSourceCompletions() throws Exception {
 		Editor editor = harness.newEditor(
@@ -4261,16 +4434,12 @@ public class ConcourseEditorTest {
 		editor.assertContextualCompletions(PLAIN_COMPLETION, "<*>",
 				//Snippet:
 				"api: $1\n" +
-				"    username: $2\n" +
-				"    password: $3\n" +
-				"    organization: $4\n" +
-				"    space: $5<*>"
+				"    organization: $2\n" +
+				"    space: $3<*>"
 				, // non-snippet:
 				"api: <*>",
 				"organization: <*>",
-				"password: <*>",
-				"space: <*>",
-				"username: <*>"
+				"space: <*>"
 		);
 
 		editor = harness.newEditor(
@@ -4279,14 +4448,150 @@ public class ConcourseEditorTest {
 				"  type: cf\n" +
 				"  source:\n" +
 				"    api: {{cf_api}}\n" +
-				"    username: {{cf_user}}\n" +
-				"    password: {{cf_password}}\n" +
 				"    organization: {{cf_org}}\n" +
 				"    space: {{cf_space}}\n" +
 				"    <*>"
 		);
 		editor.assertContextualCompletions(PLAIN_COMPLETION, "<*>",
-				"skip_cert_check: <*>"
+				"client_id: <*>",
+				"client_secret: <*>",
+				"password: <*>",
+				"skip_cert_check: <*>",
+				"username: <*>",
+				"verbose: <*>"
+		);
+	}
+	
+	@Test public void cfResourceSourceValidations() throws Exception {
+		Editor editor;
+		
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: pws\n" +
+				"  type: cf\n" +
+				"  source:\n" +
+				"    api: https://api.run.pivotal.io\n" +
+				"    organization: my-org\n" +
+				"    space: my-space\n"
+		);
+		editor.assertProblems(
+				"pws|Unused",
+				"source|One of [username, password, client_id, client_secret] is required"
+		);
+		
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: pws\n" +
+				"  type: cf\n" +
+				"  source:\n" +
+				"    api: https://api.run.pivotal.io\n" +
+				"    organization: my-org\n" +
+				"    space: my-space\n" +
+				"    username: myself"
+		);
+		editor.assertProblems(
+				"pws|Unused",
+				"username|assumes that 'password' is also defined"
+		);
+		
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: pws\n" +
+				"  type: cf\n" +
+				"  source:\n" +
+				"    api: https://api.run.pivotal.io\n" +
+				"    organization: my-org\n" +
+				"    space: my-space\n" +
+				"    password: ((secret))"
+		);
+		editor.assertProblems(
+				"pws|Unused",
+				"password|assumes that 'username' is also defined"
+		);
+
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: pws\n" +
+				"  type: cf\n" +
+				"  source:\n" +
+				"    api: https://api.run.pivotal.io\n" +
+				"    organization: my-org\n" +
+				"    space: my-space\n" +
+				"    client_id: ((secret))"
+		);
+		editor.assertProblems(
+				"pws|Unused",
+				"client_id|assumes that 'client_secret' is also defined"
+		);
+
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: pws\n" +
+				"  type: cf\n" +
+				"  source:\n" +
+				"    api: https://api.run.pivotal.io\n" +
+				"    organization: my-org\n" +
+				"    space: my-space\n" +
+				"    client_secret: ((secret))"
+		);
+		editor.assertProblems(
+				"pws|Unused",
+				"client_secret|assumes that 'client_id' is also defined"
+		);
+		
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: pws\n" +
+				"  type: cf\n" +
+				"  source:\n" +
+				"    api: https://api.run.pivotal.io\n" +
+				"    organization: my-org\n" +
+				"    space: my-space\n" +
+				"    client_id: ((secret))\n" +
+				"    client_secret: ((secret))"
+		);
+		editor.assertProblems(
+				"pws|Unused"
+		);
+
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: pws\n" +
+				"  type: cf\n" +
+				"  source:\n" +
+				"    api: https://api.run.pivotal.io\n" +
+				"    organization: my-org\n" +
+				"    space: my-space\n" +
+				"    username: ((secret))\n" +
+				"    password: ((secret))\n" +
+				"    skip_cert_check: not-bool-1\n" +
+				"    verbose: not-bool-2"
+		);
+		editor.assertProblems(
+				"pws|Unused",
+				"not-bool-1|boolean",
+				"not-bool-2|boolean"
+		);
+		
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: pws\n" +
+				"  type: cf\n" +
+				"  source:\n" +
+				"    api: https://api.run.pivotal.io\n" +
+				"    organization: my-org\n" +
+				"    space: my-space\n" +
+				"    username: ((secret))\n" +
+				"    password: ((secret))\n" +
+				"    client_id: ((id)\n" +
+				"    client_secret: ((secret)\n"
+		);
+		editor.assertProblems(
+				"pws|Unused",
+				"username|Properties [username, password] should not be used together with [client_id, client_secret]",
+				"password|Properties [username, password] should not be used together with [client_id, client_secret]",
+				"client_id|Properties [username, password] should not be used together with [client_id, client_secret]",
+				"client_secret|Properties [username, password] should not be used together with [client_id, client_secret]"				
 		);
 	}
 
@@ -4299,19 +4604,25 @@ public class ConcourseEditorTest {
 				"    api: {{cf_api}}\n" +
 				"    username: {{cf_user}}\n" +
 				"    password: {{cf_password}}\n" +
+				"    client_id: ((cf_client_id))\n" +
+				"    client_secret: ((cf_client_secret))\n" +
 				"    organization: {{cf_org}}\n" +
 				"    space: {{cf_space}}\n" +
-				"    skip_cert_check: true<*>"
+				"    skip_cert_check: true<*>\n" +
+				"    verbose: true"
 		);
 		editor.assertHoverContains("api", "address of the Cloud Controller");
 		editor.assertHoverContains("username", "username used to authenticate");
 		editor.assertHoverContains("password", "password used to authenticate");
+		editor.assertHoverContains("client_id", "client id used to authenticate");
+		editor.assertHoverContains("client_secret", "client secret used to authenticate");
 		editor.assertHoverContains("organization", "organization to push");
 		editor.assertHoverContains("space", "space to push");
 		editor.assertHoverContains("skip_cert_check", "Check the validity of the CF SSL cert");
+		editor.assertHoverContains("verbose", "Invoke `cf` cli using `CF_TRACE=true`");
 	}
 
-	@Test public void cfPutParamsHovers() throws Exception {
+	@Test public void cfPutParamsReconcileAndHovers() throws Exception {
 		Editor editor = harness.newEditor(
 				"resources:\n" +
 				"- name: pws\n" +
@@ -4326,12 +4637,30 @@ public class ConcourseEditorTest {
 				"      current_app_name: the-name\n" +
 				"      environment_variables:\n" +
 				"        key: value\n" +
-				"        key2: value2\n"
+				"        key2: value2\n" +
+				"      vars: {}\n" +
+				"      vars_files: []\n" +
+				"      docker_username: mike\n" +
+				"      docker_password: ((secret))\n" +
+				"      show_app_log: true\n" +
+				"      no_start: false\n"
 		);
+		
+		editor.assertProblems(
+				"current_app_name|Only one of 'no_start' and 'current_app_name' should be defined",
+				"no_start|Only one of 'no_start' and 'current_app_name' should be defined"
+		);
+		
 		editor.assertHoverContains("manifest", "Path to a application manifest file");
 		editor.assertHoverContains("path", "Path to the application to push");
 		editor.assertHoverContains("current_app_name", "zero-downtime deploy");
 		editor.assertHoverContains("environment_variables", "Environment variables");
+		editor.assertHoverContains("vars", "variables to pass");
+		editor.assertHoverContains("vars_files", "variables files to pass");
+		editor.assertHoverContains("docker_username", "username to authenticate");
+		editor.assertHoverContains("docker_password", "password when authenticating");
+		editor.assertHoverContains("show_app_log", "Tails the app log");
+		editor.assertHoverContains("no_start", "does not start it");
 	}
 
 	@Test public void bug_152918825_no_reconciling_for_double_parens_placeholders() throws Exception {

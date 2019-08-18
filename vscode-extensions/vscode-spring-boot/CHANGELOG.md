@@ -1,3 +1,38 @@
+## 2019-08-13 (4.3.2 RELEASE)
+
+* _(Spring Boot)_ fixed: CTRL-click navigation does not handle properties on super class correctly ([#326](https://github.com/spring-projects/sts4/issues/326))
+* _(Spring Boot)_ fixed: Configuration property analysis does not handle properties written in snake_case correctly ([#327](https://github.com/spring-projects/sts4/issues/327))
+* _(VSCode)_ fixed: Spring boot tool vscode extension is causing system to run out of disk space ([#328](https://github.com/spring-projects/sts4/issues/328))
+
+## 2019-07-12 (4.3.1 RELEASE)
+
+* _(all language servers)_ performance: further improvements to the language server startup time
+* _(Spring Boot)_ fixed: wrong error markers in properties files([#314](https://github.com/spring-projects/sts4/issues/314))
+* _(VS Code)_ fixed: vscode goto definition error with lsp ([#309](https://github.com/spring-projects/sts4/issues/309))
+
+## 2019-06-21 (4.3.0 RELEASE)
+
+- _(Spring Boot)_ improvement: project classpath notifications now happen in batch on startup to further optimize performance and job load on the Eclipse side
+- _(Spring Boot)_ improvement: symbols are now being re-created if dependent types change
+- _(Spring Boot)_ fixed: Slow code completion takes more than a 1 sec. ([#293](https://github.com/spring-projects/sts4/issues/293))
+- _(Spring Boot)_ fixed: content-assist for Spring XML config files now working again in VS Code and Theia
+- _(Spring Boot)_ fixed: ClassCast Exception in Boot LS while application.yml file opened in the editor
+- _(Spring Boot)_ fixed: Anonymous inner type beans don't have boot hints
+
+## 2019-05-24 (4.2.2 RELEASE)
+
+* _(all language servers)_ performance: additional improvements to language server startup time
+* _(Spring Boot)_ new: additional fine-grained preferences for Spring XML config file support
+* _(Spring Boot)_ new: navigation for bean identifiers, bean classes, and property names for Spring XML config files
+* _(Spring Boot)_ new: content-assist rolled out for many more Spring XML config elements and attributes
+* _(Spring Boot)_ new: live bean information now showing up in types from class files (when source code is shown) - _VSCode and Theia only at the moment_
+* _(Spring Boot)_ improvement: hugely improved content-assist for bean class attribute in Spring XML config files (incl. package name proposals and vastly improved performance)
+* _(Spring Boot)_ improvement: property name content-assist in Spring XML config files now shows proposals from properties defined in supertypes, too
+* _(Spring Boot)_ improvement: symbol scanning skips output folders now
+* _(Spring Boot)_ fixed: Detect @RequestMapping with path defined as constant instead of literal string ([#281](https://github.com/spring-projects/sts4/issues/281))
+* _(Spring Boot)_ fixed: NPE when invoking property name content-assist in XML file without bean class being defined
+* _(Spring Boot)_ fixed: tags in yaml files with dollar signs throw IllegalGroupReference in properties editor
+
 ## 2019-04-18 (4.2.1 RELEASE)
 
 * _(Spring Boot)_ performance: additional performance and memory footprint improvements to symbol indexing, eats now less memory and is faster while doing the initial indexing run

@@ -55,6 +55,7 @@ import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageClientAware;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
 import org.springframework.ide.vscode.commons.languageserver.DiagnosticService;
 import org.springframework.ide.vscode.commons.languageserver.ProgressService;
 import org.springframework.ide.vscode.commons.languageserver.Sts4LanguageServer;
@@ -62,6 +63,7 @@ import org.springframework.ide.vscode.commons.languageserver.completion.IComplet
 import org.springframework.ide.vscode.commons.languageserver.completion.VscodeCompletionEngineAdapter;
 import org.springframework.ide.vscode.commons.languageserver.completion.VscodeCompletionEngineAdapter.CompletionFilter;
 import org.springframework.ide.vscode.commons.languageserver.completion.VscodeCompletionEngineAdapter.LazyCompletionResolver;
+import org.springframework.ide.vscode.commons.languageserver.config.LanguageServerProperties;
 import org.springframework.ide.vscode.commons.languageserver.java.ls.ClasspathListener;
 import org.springframework.ide.vscode.commons.languageserver.java.ls.ClasspathListenerManager;
 import org.springframework.ide.vscode.commons.languageserver.quickfix.Quickfix;
@@ -111,10 +113,9 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 	public final LazyCompletionResolver completionResolver = createCompletionResolver();
 
 	private SimpleTextDocumentService tds;
-
 	private SimpleWorkspaceService workspace;
-
 	private STS4LanguageClient client;
+	private final LanguageServerProperties props;
 
 	private ProgressService progressService = (String taskId, String statusMsg) -> {
 		STS4LanguageClient client = SimpleLanguageServer.this.client;
@@ -155,6 +156,7 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 
 	private String completionTriggerCharacters = null;
 
+	final private ApplicationContext appContext;
 
 	@Override
 	public void connect(LanguageClient _client) {
@@ -187,7 +189,9 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 		}
 	}
 
-	public SimpleLanguageServer(String extensionId) {
+	public SimpleLanguageServer(String extensionId, ApplicationContext appContext, LanguageServerProperties props) {
+		this.appContext = appContext;
+		this.props = props;
 		Assert.isNotNull(extensionId);
 		this.EXTENSION_ID = extensionId;
 		this.CODE_ACTION_COMMAND_ID = "sts."+EXTENSION_ID+".codeAction";
@@ -270,12 +274,19 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 			getWorkspaceService().onExecuteCommand(this::executeCommand);
 		}
 		ServerCapabilities cap = getServerCapabilities();
+		if (appContext!=null) {
+			Map<String, ServerCapabilityInitializer> extraCaps = appContext.getBeansOfType(ServerCapabilityInitializer.class);
+			for (ServerCapabilityInitializer capIniter : extraCaps.values()) {
+				capIniter.initialize(params, cap);
+			}
+		}
 		result.setCapabilities(cap);
 		Consumer<InitializeParams> ih = this.initializeHandler;
 		if (ih!=null){
 			ih.accept(params);
 		}
-		log.info("Returning server capabilities to client: {}", result.getCapabilities());
+		log.info("Returning server capabilities to client");
+		log.debug("Capabilities: {}", result.getCapabilities());
 		return CompletableFuture.completedFuture(result);
 	}
 
@@ -324,7 +335,7 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 	 * Get some info safely. If there's any kind of exception, ignore it
 	 * and retutn default value instead.
 	 */
-	private static <T> T safeGet(T deflt, Callable<T> getter) {
+	public static <T> T safeGet(T deflt, Callable<T> getter) {
 		try {
 			T x = getter.call();
 			if (x!=null) {
@@ -369,17 +380,6 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 
 		c.setTextDocumentSync(TextDocumentSyncKind.Incremental);
 		c.setHoverProvider(true);
-
-		CompletionOptions completionProvider = new CompletionOptions();
-		completionProvider.setResolveProvider(hasLazyCompletionResolver());
-		if (this.completionTriggerCharacters!=null) {
-			String[] chars = new String[this.completionTriggerCharacters.length()];
-			for (int i = 0; i < chars.length; i++) {
-				chars[i] = this.completionTriggerCharacters.substring(i, i+1);
-			}
-			completionProvider.setTriggerCharacters(ImmutableList.copyOf(chars));
-		}
-		c.setCompletionProvider(completionProvider);
 
 		if (hasQuickFixes()) {
 			c.setCodeActionProvider(true);
@@ -488,7 +488,7 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 	}
 
 	protected SimpleTextDocumentService createTextDocumentService() {
-		return new SimpleTextDocumentService(this);
+		return new SimpleTextDocumentService(this, props);
 	}
 
 	public SimpleWorkspaceService createWorkspaceService() {
@@ -551,7 +551,7 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 			IProblemCollector problems = new IProblemCollector() {
 
 				private LinkedHashSet<Diagnostic> diagnostics = new LinkedHashSet<>();
-				private List<Quickfix> quickfixes = new ArrayList<>();
+				private List<Quickfix<?>> quickfixes = new ArrayList<>();
 
 				@Override
 				public void endCollecting() {
@@ -713,4 +713,9 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 	public boolean hasHierarchicalDocumentSymbolSupport() {
 		return hasHierarchicalDocumentSymbolSupport;
 	}
+
+	final public boolean hasCompletionSnippetSupport() {
+		return hasCompletionSnippetSupport;
+	}
+
 }

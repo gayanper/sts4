@@ -267,7 +267,7 @@ public abstract class ApplicationYamlAssistContext extends AbstractYamlAssistCon
 					String value = hint.getValue();
 					double score = FuzzyMatcher.matchScore(query, value);
 					if (score!=0 && !value.equals(query)) {
-						DocumentEdits edits = new DocumentEdits(doc.getDocument());
+						DocumentEdits edits = new DocumentEdits(doc.getDocument(), false);
 						int valueStart = offset-query.length();
 						edits.delete(valueStart, offset);
 						if (doc.getChar(valueStart-1)==':') {
@@ -406,7 +406,7 @@ public abstract class ApplicationYamlAssistContext extends AbstractYamlAssistCon
 				} else {
 					IType javaType = javaProject.getIndex().findType(parentType.getErasure());
 					if (javaType != null) {
-						IMethod method = PropertiesDefinitionCalculator.getPropertyMethod(javaType, propName);
+						IMethod method = PropertiesDefinitionCalculator.getPropertyMethod(typeUtil, javaType, propName);
 						if (method != null) {
 							Location location = javaElementLocationProvider.findLocation(javaProject, method);
 							if (location != null) {
@@ -555,7 +555,7 @@ public abstract class ApplicationYamlAssistContext extends AbstractYamlAssistCon
 			PropertyInfo prop = indexNav.getExactMatch();
 			if (prop != null) {
 				IJavaProject project = typeUtil.getJavaProject();
-				Collection<IMember> elements = PropertiesDefinitionCalculator.getPropertyJavaElement(project, prop);
+				Collection<IMember> elements = PropertiesDefinitionCalculator.getPropertyJavaElement(typeUtil, project, prop);
 				return PropertiesDefinitionCalculator.getLocations(javaElementLocationProvider, project, elements);
 			}
 			return ImmutableList.of();

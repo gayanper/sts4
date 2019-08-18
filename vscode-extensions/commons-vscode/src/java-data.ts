@@ -42,6 +42,11 @@ export function registerJavaDataService(client : LanguageClient) : void {
     client.onRequest(javaSuperTypes, async (params: JavaTypeHierarchyParams) =>
         <any> await VSCode.commands.executeCommand("java.execute.workspaceCommand", "sts.java.hierarchy.supertypes", params)
     );
+
+    const javaCodeCompletion = new RequestType<JavaCodeCompleteParams, any, void, void>('sts/javaCodeComplete');
+    client.onRequest(javaCodeCompletion, async (params: JavaCodeCompleteParams) =>
+        <any> await VSCode.commands.executeCommand("java.execute.workspaceCommand", "sts.java.code.completions", params)
+    );
 }
 
 interface JavaDataParams {
@@ -53,6 +58,7 @@ interface JavaDataParams {
 interface JavaSearchParams {
     projectUri: string;
     term: string;
+    searchType: string;
     includeBinaries: boolean;
     includeSystemLibs: boolean;
     timeLimit: number;
@@ -62,4 +68,11 @@ interface JavaTypeHierarchyParams {
     projectUri?: string;
     fqName: string;
     includeFocusType: boolean;
+}
+
+interface JavaCodeCompleteParams {
+    projectUri: string;
+    prefix: string;
+    includeTypes: boolean;
+    includePackages: boolean;
 }

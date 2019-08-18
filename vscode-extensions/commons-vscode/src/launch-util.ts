@@ -8,7 +8,14 @@ import * as Net from 'net';
 import * as ChildProcess from 'child_process';
 import * as CommonsCommands from './commands';
 import { TextDocumentIdentifier, RequestType, LanguageClient, LanguageClientOptions, SettingMonitor, ServerOptions, StreamInfo, Position } from 'vscode-languageclient';
-import {TextDocument, OutputChannel, Disposable, window, Event, EventEmitter} from 'vscode';
+import {
+    Disposable,
+    window,
+    Event,
+    EventEmitter,
+    ProgressLocation,
+    Progress,
+} from 'vscode';
 import { Trace, NotificationType } from 'vscode-jsonrpc';
 import * as P2C from 'vscode-languageclient/lib/protocolConverter';
 import {HighlightService, HighlightParams} from './highlight-service';
@@ -18,6 +25,7 @@ import { JVM, findJvm, findJdk } from '@pivotal-tools/jvm-launch-utils';
 import { registerClasspathService } from './classpath';
 import {HighlightCodeLensProvider} from "./code-lens-service";
 import {registerJavaDataService} from "./java-data";
+import * as path from "path";
 
 let p2c = P2C.createConverter();
 
@@ -36,6 +44,13 @@ export interface ActivatorOptions {
     checkjvm?: (context: VSCode.ExtensionContext, jvm: JVM) => any;
     preferJdk?: boolean;
     highlightCodeLensSettingKey?: string;
+    explodedLsJarData?: ExplodedLsJarData;
+}
+
+export interface ExplodedLsJarData {
+    lsLocation: string;
+    mainClass: string;
+    configFileName?: string;
 }
 
 type JavaOptions = {
@@ -131,14 +146,15 @@ export function activate(options: ActivatorOptions, context: VSCode.ExtensionCon
                             let processLaunchoptions = {
                                 cwd: VSCode.workspace.rootPath
                             };
-                            let logfile = Path.join(tmpdir(), options.extensionId + '-' + Date.now()+'.log');
+                            let logfile : string = options.workspaceOptions.get("logfile") || "/dev/null";
+                            //The logfile = '/dev/null' is handled specifically by the language server process so it works on all OSs.
                             log('Redirecting server logs to ' + logfile);
                             const args = [
                                 '-Dspring.lsp.client-port='+port,
                                 '-Dserver.port=' + port,
                                 '-Dsts.lsp.client=vscode',
-                                '-Dsts.log.file=' + logfile, //old style log redirect
-                                '-Dlogging.file=' + logfile // spring boot log redirect
+                                '-Dsts.log.file=' + logfile,
+                                '-XX:TieredStopAtLevel=1'
                             ];
                             if (options.checkjvm) {
                                 options.checkjvm(context, jvm);
@@ -153,15 +169,35 @@ export function activate(options: ActivatorOptions, context: VSCode.ExtensionCon
                                 args.unshift(DEBUG_ARG);
                             }
 
-                            // Start the child java process
-                            let launcher = findServerJar(Path.resolve(context.extensionPath, 'jars'));
-                            let child = jvm.jarLaunch(launcher, args, processLaunchoptions);
-                            child.stdout.on('data', (data) => {
-                                log("" + data);
-                            });
-                            child.stderr.on('data', (data) => {
-                                error("" + data);
-                            })
+                            let child: ChildProcess.ChildProcess = null;
+                            if (options.explodedLsJarData) {
+                                const explodedLsJarData = options.explodedLsJarData;
+                                const lsRoot = Path.resolve(context.extensionPath, explodedLsJarData.lsLocation);
+
+                                // Add config file if needed
+                                if (explodedLsJarData.configFileName) {
+                                    args.push(`-Dspring.config.location=file:${Path.resolve(lsRoot, `BOOT-INF/classes/${explodedLsJarData.configFileName}`)}`);
+                                }
+
+                                // Add classpath
+                                const classpath: string[] = [];
+                                classpath.push(Path.resolve(lsRoot, 'BOOT-INF/classes'));
+                                classpath.push(`${Path.resolve(lsRoot, 'BOOT-INF/lib')}${Path.sep}*`);
+
+                                child = jvm.mainClassLaunch(explodedLsJarData.mainClass, classpath, args, processLaunchoptions);
+                            } else {
+                                // Start the child java process
+                                const launcher = findServerJar(Path.resolve(context.extensionPath, 'jars'));
+                                child = jvm.jarLaunch(launcher, args, processLaunchoptions);
+                            }
+                            if (child) {
+                                child.stdout.on('data', (data) => {
+                                    log("" + data);
+                                });
+                                child.stderr.on('data', (data) => {
+                                    error("" + data);
+                                })
+                            }
                         });
                     });
                 });
@@ -306,25 +342,48 @@ interface ProgressParams {
     statusMsg?: string
 }
 
+class ProgressHandle {
+    constructor(
+        private progress: Progress<{ message?: string; increment?: number }>,
+        private finish: () => void
+    ) {}
+
+    updateStatus(message: string, increment: number) {
+        this.progress.report({
+            message,
+            increment
+        });
+    }
+
+    complete() {
+        this.finish();
+    }
+}
+
 class ProgressService {
 
-    private status = new Map<String, Disposable>();
+    private status = new Map<String, ProgressHandle>();
 
     handle(params: ProgressParams) {
-        let oldMessage = this.status.get(params.id);
-        if (oldMessage) {
-            oldMessage.dispose();
+        const progressHandler = this.status.get(params.id);
+        if (progressHandler) {
+            progressHandler.complete();
+        } else {
+            if (params.statusMsg) {
+                window.withProgress({
+                    location: ProgressLocation.Notification,
+                    title: params.statusMsg,
+                    cancellable: false
+                }, progress => new Promise(resolve => this.status.set(params.id, new ProgressHandle(progress, resolve))));
+            }
         }
-        if (params.statusMsg) {
-            let newMessage = window.setStatusBarMessage(params.statusMsg);
-            this.status.set(params.id, newMessage);
-        }
+
     }
 
     dispose() {
         if (this.status) {
-            for (let d of this.status.values()) {
-                d.dispose();
+            for (let handler of this.status.values()) {
+                handler.complete();
             }
         }
         this.status = null;

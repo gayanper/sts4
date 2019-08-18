@@ -1,3 +1,19 @@
+## 2019-08-13 (4.3.2 RELEASE)
+
+* _(VSCode)_ fixed: Spring boot tool vscode extension is causing system to run out of disk space ([#328](https://github.com/spring-projects/sts4/issues/328))
+
+## 2019-07-12 (4.3.1 RELEASE)
+
+* _(all language servers)_ performance: further improvements to the language server startup time
+
+## 2019-06-21 (4.3.0 RELEASE)
+
+* no major changes
+
+## 2019-05-24 (4.2.2 RELEASE)
+
+* _(all language servers)_ performance: additional improvements to language server startup time
+
 ## 2019-04-18 (4.2.1 RELEASE)
 
 * _(VSCode, Atom, Theia)_ improvement: JVM args can now be configured for language server processes

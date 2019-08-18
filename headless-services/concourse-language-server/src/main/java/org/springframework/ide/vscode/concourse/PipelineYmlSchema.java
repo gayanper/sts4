@@ -58,6 +58,7 @@ import org.yaml.snakeyaml.nodes.MappingNode;
 import org.yaml.snakeyaml.nodes.Node;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 /**
  * @author Kris De Volder
@@ -236,6 +237,7 @@ public class PipelineYmlSchema implements YamlSchema {
 		addProp(t_resource, "check_every", t_duration);
 		addProp(t_resource, "tags", t_strings);
 		addProp(t_resource, "webhook_token", t_ne_string);
+		addProp(t_resource, "icon", t_ne_string);
 
 		AbstractType t_image_resource = f.ybean("ImageResource");
 		{
@@ -323,6 +325,7 @@ public class PipelineYmlSchema implements YamlSchema {
 		YBeanType putStep = f.ybean("PutStep");
 		addProp(putStep, "put", t_put_get_name);
 		addProp(putStep, "resource", t_resource_name);
+		addProp(putStep, "inputs", t_strings);
 		addProp(putStep, "params", f.contextAware("PutParams", (dc) ->
 			resourceTypes.getOutParamsType(getResourceType("put", models, dc))
 		));
@@ -353,25 +356,30 @@ public class PipelineYmlSchema implements YamlSchema {
 		addProp(taskStep, "config", task);
 		addProp(taskStep, "privileged", t_boolean);
 		addProp(taskStep, "params", t_params);
+		addProp(taskStep, "vars", t_params);
 		addProp(taskStep, "image", t_resource_name);
 		addProp(taskStep, "input_mapping",  f.ymap(t_ne_string, t_maybe_resource_name));
 		addProp(taskStep, "output_mapping", t_string_params);
 		taskStep.requireOneOf("config", "file");
+		taskStep.require(Constraints.implies("vars", "file"));
 
 		YBeanType aggregateStep = f.ybean("AggregateStep");
 		YBeanType doStep = f.ybean("DoStep");
 		YBeanType tryStep = f.ybean("TryStep");
+		YBeanType inParallelStep = f.ybean("InParallelStep");
 
 		YBeanType[] stepTypes = {
 				getStep,
 				putStep,
 				taskStep,
 				aggregateStep,
+				inParallelStep,
 				doStep,
 				tryStep
 		};
 		YBeanUnionType step = f.yBeanUnion("Step", stepTypes);
 		addProp(aggregateStep, "aggregate", f.yseq(step));
+		addProp(inParallelStep, "in_parallel", f.yseq(step));
 		addProp(doStep, "do", f.yseq(step));
 		addProp(tryStep, "try", step);
 
@@ -582,6 +590,14 @@ public class PipelineYmlSchema implements YamlSchema {
 			addProp(source, "regexp", t_ne_string);
 			addProp(source, "versioned_file", t_ne_string);
 			source.requireOneOf("regexp", "versioned_file");
+			addProp(source, "initial_path", t_ne_string);
+			addProp(source, "initial_version", t_ne_string);
+			source.require(Constraints.mutuallyExclusive("initial_path", "initial_version"));
+			source.require(Constraints.implies("initial_version", "versioned_file"));
+			source.require(Constraints.implies("initial_path", "regexp"));
+			addProp(source, "initial_content_text", t_ne_string);
+			addProp(source, "initial_content_binary", t_ne_string);
+			source.require(Constraints.mutuallyExclusive("initial_content_text", "initial_content_binary"));
 
 			AbstractType get = f.ybean("S3GetParams");
 			addProp(get, "unpack", t_boolean);
@@ -710,11 +726,22 @@ public class PipelineYmlSchema implements YamlSchema {
 
 			AbstractType source = f.ybean("CloudFoundrySource");
 			addProp(source, "api", t_cf_api_url).isRequired(true);
-			addProp(source, "username", t_ne_string).isRequired(true);
-			addProp(source, "password", t_ne_string).isRequired(true);
+			addProp(source, "username", t_ne_string);
+			addProp(source, "password", t_ne_string);
+			addProp(source, "client_id", t_ne_string);
+			addProp(source, "client_secret", t_ne_string);
 			addProp(source, "organization", t_ne_string).isRequired(true);
 			addProp(source, "space", t_ne_string).isRequired(true);
-			addProp(source, "skip_cert_check", t_ne_string);
+			addProp(source, "skip_cert_check", t_boolean);
+			addProp(source, "verbose", t_boolean);
+			
+			source.require(Constraints.together("username", "password"));
+			source.require(Constraints.together("client_id", "client_secret"));
+			source.require(Constraints.requireAtLeastOneOf("username", "password", "client_id", "client_secret"));
+			source.require(Constraints.mutuallyExclusive(
+					ImmutableList.of("username", "password"), 
+					ImmutableList.of("client_id", "client_secret")
+			));
 
 			AbstractType get = f.ybean("CloudFoundryGetParams");
 			//get params deliberately left empty
@@ -724,6 +751,13 @@ public class PipelineYmlSchema implements YamlSchema {
 			addProp(put, "path", t_ne_string);
 			addProp(put, "current_app_name", t_ne_string);
 			addProp(put, "environment_variables", t_string_params);
+			addProp(put, "vars", t_params);
+			addProp(put, "vars_files", t_strings);
+			addProp(put, "docker_username", t_ne_string);
+			addProp(put, "docker_password", t_ne_string);
+			addProp(put, "show_app_log", t_boolean);
+			addProp(put, "no_start", t_boolean);
+			put.require(Constraints.mutuallyExclusive("no_start", "current_app_name"));
 
 			resourceTypes.def("cf", source, get, put);
 		}

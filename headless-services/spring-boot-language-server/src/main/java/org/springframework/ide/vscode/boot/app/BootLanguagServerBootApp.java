@@ -13,9 +13,14 @@ package org.springframework.ide.vscode.boot.app;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
+import org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration;
+import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.ide.vscode.boot.common.PropertyCompletionFactory;
 import org.springframework.ide.vscode.boot.common.RelaxedNameConfig;
 import org.springframework.ide.vscode.boot.java.handlers.RunningAppProvider;
@@ -38,6 +43,7 @@ import org.springframework.ide.vscode.boot.metadata.ProjectBasedPropertyIndexPro
 import org.springframework.ide.vscode.boot.metadata.PropertyInfo;
 import org.springframework.ide.vscode.boot.metadata.ValueProviderRegistry;
 import org.springframework.ide.vscode.boot.yaml.completions.ApplicationYamlAssistContext;
+import org.springframework.ide.vscode.commons.languageserver.LanguageServerRunner;
 import org.springframework.ide.vscode.commons.languageserver.util.DocumentEventListenerManager;
 import org.springframework.ide.vscode.commons.languageserver.util.LspClient;
 import org.springframework.ide.vscode.commons.languageserver.util.SimpleLanguageServer;
@@ -52,19 +58,30 @@ import org.springframework.ide.vscode.commons.yaml.completion.YamlAssistContext;
 import org.springframework.ide.vscode.commons.yaml.completion.YamlAssistContextProvider;
 import org.springframework.ide.vscode.commons.yaml.structure.YamlDocument;
 import org.springframework.ide.vscode.commons.yaml.structure.YamlStructureProvider;
+import org.springframework.ide.vscode.languageserver.starter.LanguageServerAutoConf;
+import org.springframework.ide.vscode.languageserver.starter.LanguageServerRunnerAutoConf;
 import org.yaml.snakeyaml.Yaml;
 
-@SpringBootApplication
+@SpringBootConfiguration(proxyBeanMethods = false)
+@ImportAutoConfiguration({ 
+	// During development you can uncomment the below so that boot dash can detect started state properly:
+	// SpringApplicationAdminJmxAutoConfiguration.class,
+	LanguageServerAutoConf.class, 
+	LanguageServerRunnerAutoConf.class, 
+	ConfigurationPropertiesAutoConfiguration.class, 
+	PropertyPlaceholderAutoConfiguration.class
+})
+@EnableConfigurationProperties(BootLsConfigProperties.class)
+@ComponentScan
 public class BootLanguagServerBootApp {
+	
 	private static final String SERVER_NAME = "boot-language-server";
 
 	public static void main(String[] args) throws Exception {
+		System.setProperty(LanguageServerRunner.SYSPROP_LANGUAGESERVER_NAME, SERVER_NAME); //makes it easy to recognize language server processes - and set this as early as possible
+		
 		LogRedirect.bootRedirectToFile(SERVER_NAME); //TODO: use boot (or logback realy) to configure logging instead.
 		SpringApplication.run(BootLanguagServerBootApp.class, args);
-	}
-
-	@Bean public String serverName() {
-		return SERVER_NAME;
 	}
 
 	@ConditionalOnMissingClass("org.springframework.ide.vscode.languageserver.testharness.LanguageServerHarness")
@@ -86,10 +103,6 @@ public class BootLanguagServerBootApp {
 	@ConditionalOnMissingClass("org.springframework.ide.vscode.languageserver.testharness.LanguageServerHarness")
 	@Bean AdHocSpringPropertyIndexProvider adHocProperties(BootLanguageServerParams params, FileObserver fileObserver, DocumentEventListenerManager documentEvents) {
 		return new AdHocSpringPropertyIndexProvider(params.projectFinder, params.projectObserver, fileObserver, documentEvents);
-	}
-
-	@Bean SimpleTextDocumentService documentEvents(SimpleLanguageServer server) {
-		return server.getTextDocumentService();
 	}
 
 	@Bean FileObserver fileObserver(SimpleLanguageServer server) {
