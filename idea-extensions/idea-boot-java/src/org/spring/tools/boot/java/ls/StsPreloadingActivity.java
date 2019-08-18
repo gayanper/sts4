@@ -37,7 +37,7 @@ public class StsPreloadingActivity extends PreloadingActivity {
                         .withLanguageMapping("yml", LANG_ID_YAML)
                         .withLanguageMapping("xml", LANG_ID_XML)
                         .withLanguageMapping("properties", LANG_ID_PROPERTIES)
-                        .withServerListener().build());
+                        .withServerListener().enableDebugging().build());
         IntellijLanguageClient.addExtensionManager("java", new StsLspExtensionManager());
     }
 }

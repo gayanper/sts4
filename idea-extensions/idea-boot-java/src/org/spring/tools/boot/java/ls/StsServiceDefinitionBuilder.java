@@ -20,6 +20,7 @@ public final class StsServiceDefinitionBuilder {
     private String langId;
     private boolean serverListenerEnabled = false;
     private Map<String, String> langIds = new HashMap<>();
+    private boolean debug = false;
 
     private StsServiceDefinitionBuilder(String extensions) {
         this.extensions = extensions;
@@ -36,6 +37,11 @@ public final class StsServiceDefinitionBuilder {
 
     public StsServiceDefinitionBuilder withServerListener() {
         this.serverListenerEnabled = true;
+        return this;
+    }
+
+    public StsServiceDefinitionBuilder enableDebugging() {
+        this.debug = true;
         return this;
     }
 
@@ -63,16 +69,21 @@ public final class StsServiceDefinitionBuilder {
             final String javaExePath = javaHomePath.resolve(Paths.get("bin", javaExecutable))
                 .toString();
 
+            String debugOptions = "";
+            if(debug) {
+                debugOptions = "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=1044";
+            }
+
             if (serverListenerEnabled) {
                 return new StsListenableServerDefinition(extensions,
                         langIds,
-                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(), LAUNCHER,
-                            "-Danguageserver.boot.enable-jandex-index=true"});
+                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(),debugOptions,
+                            "-Dlanguageserver.boot.enable-jandex-index=true", LAUNCHER});
             } else {
                 return new StsServerDefinition(extensions,
                         langIds,
-                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(), LAUNCHER,
-                            "-Danguageserver.boot.enable-jandex-index=true"});
+                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(),debugOptions,
+                            "-Dlanguageserver.boot.enable-jandex-index=true", LAUNCHER});
             }
 
         } catch (URISyntaxException e) {
