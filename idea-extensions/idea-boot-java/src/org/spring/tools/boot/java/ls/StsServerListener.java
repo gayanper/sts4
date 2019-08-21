@@ -16,7 +16,8 @@ class StsServerListener implements ServerListener {
     public void initialize(@NotNull LanguageServer server, @NotNull InitializeResult result) {
         ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, String>>> configJsonObject = ImmutableMap
             .of("boot-java",
-                ImmutableMap.of("support-spring-xml-config", ImmutableMap.of("on", "true")));
+                ImmutableMap.of("support-spring-xml-config", ImmutableMap.of("on", "true",
+                        "hyperlinks", "true", "scan-folders-globs", "**/src/main/**")));
         server.getWorkspaceService()
             .didChangeConfiguration(new DidChangeConfigurationParams(configJsonObject));
     }

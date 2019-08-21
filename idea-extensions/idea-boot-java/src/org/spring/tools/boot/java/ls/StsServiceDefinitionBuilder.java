@@ -1,5 +1,6 @@
 package org.spring.tools.boot.java.ls;
 
+import com.google.common.collect.ImmutableList;
 import com.intellij.openapi.diagnostic.Logger;
 import org.wso2.lsp4intellij.client.languageserver.serverdefinition.RawCommandServerDefinition;
 
@@ -69,21 +70,22 @@ public final class StsServiceDefinitionBuilder {
             final String javaExePath = javaHomePath.resolve(Paths.get("bin", javaExecutable))
                 .toString();
 
-            String debugOptions = "";
+            final ImmutableList.Builder<String> commandBuilder = ImmutableList.builder();
+            commandBuilder.add(javaExePath);
+            commandBuilder.add("-classpath").add(classPathBuilder.toString());
+
             if(debug) {
-                debugOptions = "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=1044";
+                commandBuilder.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=1044");
             }
+            //commandBuilder.add("-Dlanguageserver.boot.enable-jandex-index=true");
+            commandBuilder.add(LAUNCHER);
 
             if (serverListenerEnabled) {
                 return new StsListenableServerDefinition(extensions,
-                        langIds,
-                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(),debugOptions,
-                            "-Dlanguageserver.boot.enable-jandex-index=true", LAUNCHER});
+                        langIds, commandBuilder.build().toArray(new String[0]));
             } else {
                 return new StsServerDefinition(extensions,
-                        langIds,
-                    new String[]{javaExePath, "-classpath", classPathBuilder.toString(),debugOptions,
-                            "-Dlanguageserver.boot.enable-jandex-index=true", LAUNCHER});
+                        langIds, commandBuilder.build().toArray(new String[0]));
             }
 
         } catch (URISyntaxException e) {

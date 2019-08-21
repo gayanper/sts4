@@ -13,7 +13,6 @@ import com.intellij.psi.search.PsiShortNamesCache;
 import com.intellij.psi.search.searches.ClassInheritorsSearch;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.MarkupContent;
-import org.eclipse.lsp4j.jsonrpc.services.JsonNotification;
 import org.spring.tools.boot.java.ls.highlight.HighlightProcessor;
 import org.spring.tools.boot.java.ls.highlight.InlayHighlightProcessor;
 import org.spring.tools.boot.java.ls.highlight.RangeHighlightProcessor;
@@ -94,8 +93,8 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
     public CompletableFuture<Object> addClasspathListener(ClasspathListenerParams params) {
         ClasspathListener classpathListener = ClasspathListener.from(params, getContext().getProject());
         classpathListenerMap.put(params.getCallbackCommandId(), classpathListener);
-        classpathListener.register(getContext().getRequestManager());
-        return CompletableFuture.completedFuture("ok");
+        //classpathListener.register(getContext().getRequestManager());
+        return CompletableFuture.completedFuture(new Object());
     }
 
     @Override
@@ -107,12 +106,12 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
             LOGGER.warn("removeClasspathListener was called for unregistered listener [callbackId:"
                     + params.getCallbackCommandId() + "]");
         }
-        return CompletableFuture.completedFuture("ok");
+        return CompletableFuture.completedFuture(new Object());
     }
 
     @Override
     public CompletableFuture<MarkupContent> javadoc(org.springframework.ide.vscode.commons.protocol.java.JavaDataParams params) {
-        return null;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -122,26 +121,26 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
 
     @Override
     public CompletableFuture<String> javadocHoverLink(org.springframework.ide.vscode.commons.protocol.java.JavaDataParams params) {
-        return null;
+        return CompletableFuture.completedFuture("");
     }
 
     @Override
     public CompletableFuture<Location> javaLocation(org.springframework.ide.vscode.commons.protocol.java.JavaDataParams params) {
-        return null;
+        return CompletableFuture.completedFuture(null);
     }
 
-    @JsonNotification("sts/javaSearchTypes")
+    @Override
     public CompletableFuture<List<TypeDescriptorData>> javaSearchTypes(JavaSearchParams params) {
         return CompletableFuture.completedFuture(typeDescriptorProvider.descriptors(PsiShortNamesCache.getInstance(getContext().getProject())
                 .getClassesByName(params.getTerm(), GlobalSearchScope.allScope(getContext().getProject()))));
     }
 
-    @JsonNotification("sts/javaSearchPackages")
+    @Override
     public CompletableFuture<List<String>> javaSearchPackages(JavaSearchParams params) {
         return CompletableFuture.completedFuture(Collections.emptyList());
     }
 
-    @JsonNotification("sts/javaSubTypes")
+    @Override
     public CompletableFuture<List<TypeDescriptorData>> javaSubTypes(JavaTypeHierarchyParams params) {
         return CompletableFuture.completedFuture(findClass(params).map(clazz -> {
             List<PsiClass> subtypes = Lists.newCopyOnWriteArrayList(ClassInheritorsSearch.search(clazz, true).findAll());
@@ -152,7 +151,7 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
         }).orElse(Collections.emptyList()));
     }
 
-    @JsonNotification("sts/javaSuperTypes")
+    @Override
     public CompletableFuture<List<TypeDescriptorData>> javaSuperTypes(JavaTypeHierarchyParams params) {
         return CompletableFuture.completedFuture(findClass(params).map(clazz -> {
             return typeDescriptorProvider.descriptors(clazz.getSupers());
@@ -161,7 +160,7 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
 
     @Override
     public CompletableFuture<List<JavaCodeCompleteData>> javaCodeComplete(JavaCodeCompleteParams params) {
-        return null;
+        return CompletableFuture.completedFuture(Collections.emptyList());
     }
 
     private Optional<PsiClass> findClass(JavaTypeHierarchyParams params) {
