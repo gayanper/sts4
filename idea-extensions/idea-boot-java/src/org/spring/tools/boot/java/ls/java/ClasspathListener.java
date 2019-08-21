@@ -99,7 +99,7 @@ public class ClasspathListener {
                 .projectUri(project.getProjectFilePath()).classpath(classpath).arguments());
         CompletableFuture<Object> result = requestManager.executeCommand(commandParams);
         try {
-            if (result.get() != null) {
+            if (!"done".equals(result.get())) {
                 LOGGER.error("executeCommand failed for callback " + callbackCommandId
                         + " with error code:" + result.get().toString());
             }

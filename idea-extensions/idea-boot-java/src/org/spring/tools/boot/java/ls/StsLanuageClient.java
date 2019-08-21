@@ -91,22 +91,26 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
 
     @Override
     public CompletableFuture<Object> addClasspathListener(ClasspathListenerParams params) {
-        ClasspathListener classpathListener = ClasspathListener.from(params, getContext().getProject());
-        classpathListenerMap.put(params.getCallbackCommandId(), classpathListener);
-        //classpathListener.register(getContext().getRequestManager());
-        return CompletableFuture.completedFuture(new Object());
+        return CompletableFuture.supplyAsync(() -> {
+            ClasspathListener classpathListener = ClasspathListener.from(params, getContext().getProject());
+            classpathListenerMap.put(params.getCallbackCommandId(), classpathListener);
+            classpathListener.register(getContext().getRequestManager());
+            return new Object();
+        });
     }
 
     @Override
     public CompletableFuture<Object> removeClasspathListener(ClasspathListenerParams params) {
-        ClasspathListener classpathListener = classpathListenerMap.remove(params.getCallbackCommandId());
-        if (classpathListener != null) {
-            classpathListener.unregister();
-        } else {
-            LOGGER.warn("removeClasspathListener was called for unregistered listener [callbackId:"
-                    + params.getCallbackCommandId() + "]");
-        }
-        return CompletableFuture.completedFuture(new Object());
+        return CompletableFuture.supplyAsync(() -> {
+            ClasspathListener classpathListener = classpathListenerMap.remove(params.getCallbackCommandId());
+            if (classpathListener != null) {
+                classpathListener.unregister();
+            } else {
+                LOGGER.warn("removeClasspathListener was called for unregistered listener [callbackId:"
+                        + params.getCallbackCommandId() + "]");
+            }
+            return new Object();
+        });
     }
 
     @Override
