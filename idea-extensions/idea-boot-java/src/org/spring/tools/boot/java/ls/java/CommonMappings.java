@@ -8,7 +8,7 @@ import java.util.function.Function;
 public class CommonMappings {
 
     public static CPE toBinaryCPE(VirtualFile file) {
-        return CPE.binary(file.getPath());
+        return CPE.binary(file.getPath().replace("!/", ""));
     }
 
     public static String firstOrEmpty(VirtualFile[] files, Function<VirtualFile, String> transformer) {

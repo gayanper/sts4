@@ -171,5 +171,4 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
         return Optional.ofNullable(JavaPsiFacade.getInstance(getContext().getProject()).findClass(params.getFqName(),
                 GlobalSearchScope.allScope(getContext().getProject())));
     }
-
 }

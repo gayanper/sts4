@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import com.intellij.lang.jvm.annotation.*;
 import com.intellij.lang.jvm.types.JvmPrimitiveTypeKind;
 import com.intellij.lang.jvm.types.JvmType;
+import com.intellij.openapi.application.ex.ApplicationUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.libraries.Library;
@@ -13,6 +14,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.psi.util.ClassUtil;
 import com.intellij.psi.util.PsiUtil;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.ide.vscode.commons.java.JavaUtils;
 import org.springframework.ide.vscode.commons.protocol.java.JavaTypeData;
 import org.springframework.ide.vscode.commons.protocol.java.JavaTypeData.JavaTypeKind;
@@ -63,6 +65,11 @@ public class TypeProvider {
     }
 
     public TypeData typeDataFor(String typeBinding) {
+        return ApplicationUtil.tryRunReadAction(() -> processTypeInfo(typeBinding));
+    }
+
+    @NotNull
+    private TypeData processTypeInfo(String typeBinding) {
         PsiClass psiClass = ClassUtil.findPsiClass(psiManager, JavaUtils.typeBindingKeyToFqName(typeBinding));
         TypeData data = new TypeData();
         data.setName(psiClass.getName());

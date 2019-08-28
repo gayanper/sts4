@@ -14,10 +14,12 @@ class StsServerListener implements ServerListener {
 
     @Override
     public void initialize(@NotNull LanguageServer server, @NotNull InitializeResult result) {
-        ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, String>>> configJsonObject = ImmutableMap
+        ImmutableMap<String, Object> configJsonObject = ImmutableMap
             .of("boot-java",
                 ImmutableMap.of("support-spring-xml-config", ImmutableMap.of("on", "true",
-                        "hyperlinks", "true", "scan-folders-globs", "**/src/main/**")));
+                        "hyperlinks", "true", "scan-folders-globs", "**/src/main/**,**/src/test/**",
+                        "content-assist", "true")),
+                    "scan-java-test-sources", ImmutableMap.of("on", " true"));
         server.getWorkspaceService()
             .didChangeConfiguration(new DidChangeConfigurationParams(configJsonObject));
     }

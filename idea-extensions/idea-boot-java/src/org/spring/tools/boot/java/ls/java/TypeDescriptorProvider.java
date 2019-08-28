@@ -1,5 +1,6 @@
 package org.spring.tools.boot.java.ls.java;
 
+import com.intellij.openapi.application.ex.ApplicationUtil;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.util.PsiUtil;
 import org.springframework.ide.vscode.commons.protocol.java.TypeDescriptorData;
@@ -11,7 +12,7 @@ import java.util.stream.Collectors;
 
 public class TypeDescriptorProvider {
     public List<TypeDescriptorData> descriptors(PsiClass[] clazzs) {
-        return Arrays.stream(clazzs).map(this::map).collect(Collectors.toList());
+        return ApplicationUtil.tryRunReadAction(() -> Arrays.stream(clazzs).map(this::map).collect(Collectors.toList()));
     }
 
     private TypeDescriptorData map(PsiClass psiClass) {

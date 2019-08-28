@@ -15,6 +15,8 @@ import org.springframework.ide.vscode.commons.protocol.java.ClasspathListenerPar
 import org.wso2.lsp4intellij.client.languageserver.requestmanager.RequestManager;
 import org.springframework.ide.vscode.commons.protocol.java.Classpath.CPE;
 import org.springframework.ide.vscode.commons.protocol.java.Classpath;
+import org.wso2.lsp4intellij.utils.FileUtils;
+
 import java.io.File;
 import java.net.MalformedURLException;
 import java.util.*;
@@ -96,7 +98,7 @@ public class ClasspathListener {
 
         Classpath classpath = new Classpath(Lists.newArrayList(entries));
         commandParams.setArguments(ClasspathArgument.argument(project.getName())
-                .projectUri(project.getProjectFilePath()).classpath(classpath).arguments());
+                .projectUri(FileUtils.projectToUri(project)).classpath(classpath).arguments());
         CompletableFuture<Object> result = requestManager.executeCommand(commandParams);
         try {
             if (!"done".equals(result.get())) {
