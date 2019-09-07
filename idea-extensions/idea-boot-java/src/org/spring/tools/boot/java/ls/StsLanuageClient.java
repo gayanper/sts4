@@ -32,6 +32,8 @@ import org.wso2.lsp4intellij.utils.FileUtils;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+import static org.spring.tools.boot.java.ls.ApplicationUtils.runReadAction;
+
 class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClient {
 
     private static final Logger LOGGER = Logger.getInstance(StsLanuageClient.class);
@@ -120,7 +122,9 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
 
     @Override
     public CompletableFuture<TypeData> javaType(JavaDataParams params) {
-        return CompletableFuture.completedFuture(typeProvider.typeDataFor(params.getBindingKey()));
+        return runReadAction(() -> {
+            return CompletableFuture.completedFuture(typeProvider.typeDataFor(params.getBindingKey()));
+        });
     }
 
     @Override
@@ -135,8 +139,10 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
 
     @Override
     public CompletableFuture<List<TypeDescriptorData>> javaSearchTypes(JavaSearchParams params) {
-        return CompletableFuture.completedFuture(typeDescriptorProvider.descriptors(PsiShortNamesCache.getInstance(getContext().getProject())
-                .getClassesByName(params.getTerm(), GlobalSearchScope.allScope(getContext().getProject()))));
+        return runReadAction(() -> {
+            return CompletableFuture.completedFuture(typeDescriptorProvider.descriptors(PsiShortNamesCache.getInstance(getContext().getProject())
+                    .getClassesByName(params.getTerm(), GlobalSearchScope.allScope(getContext().getProject()))));
+        });
     }
 
     @Override
@@ -146,20 +152,24 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
 
     @Override
     public CompletableFuture<List<TypeDescriptorData>> javaSubTypes(JavaTypeHierarchyParams params) {
-        return CompletableFuture.completedFuture(findClass(params).map(clazz -> {
-            List<PsiClass> subtypes = Lists.newCopyOnWriteArrayList(ClassInheritorsSearch.search(clazz, true).findAll());
-            if(params.isIncludeFocusType()) {
-                subtypes.add(clazz);
-            }
-            return typeDescriptorProvider.descriptors(subtypes.toArray(new PsiClass[0]));
-        }).orElse(Collections.emptyList()));
+        return runReadAction(() -> {
+            return CompletableFuture.completedFuture(findClass(params).map(clazz -> {
+                List<PsiClass> subtypes = Lists.newCopyOnWriteArrayList(ClassInheritorsSearch.search(clazz, true).findAll());
+                if(params.isIncludeFocusType()) {
+                    subtypes.add(clazz);
+                }
+                return typeDescriptorProvider.descriptors(subtypes.toArray(new PsiClass[0]));
+            }).orElse(Collections.emptyList()));
+        });
     }
 
     @Override
     public CompletableFuture<List<TypeDescriptorData>> javaSuperTypes(JavaTypeHierarchyParams params) {
-        return CompletableFuture.completedFuture(findClass(params).map(clazz -> {
-            return typeDescriptorProvider.descriptors(clazz.getSupers());
-        }).orElse(Collections.emptyList()));
+        return runReadAction(() -> {
+            return CompletableFuture.completedFuture(findClass(params).map(clazz -> {
+                return typeDescriptorProvider.descriptors(clazz.getSupers());
+            }).orElse(Collections.emptyList()));
+        });
     }
 
     @Override
