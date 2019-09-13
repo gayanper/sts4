@@ -38,6 +38,8 @@ import org.springframework.ide.vscode.commons.util.Renderables;
 import org.springframework.ide.vscode.commons.util.ValueParser;
 import org.springframework.ide.vscode.commons.yaml.ast.YamlFileAST;
 import org.springframework.ide.vscode.commons.yaml.reconcile.YamlSchemaProblems;
+import org.springframework.ide.vscode.commons.yaml.schema.YTypeFactory.AbstractUnionType;
+import org.springframework.ide.vscode.commons.yaml.schema.YTypeFactory.YBeanAndSequenceUnion;
 import org.springframework.ide.vscode.commons.yaml.schema.constraints.Constraint;
 import org.springframework.ide.vscode.commons.yaml.schema.constraints.Constraints;
 import org.springframework.ide.vscode.commons.yaml.snippet.TypeBasedSnippetProvider;
@@ -168,19 +170,27 @@ public class YTypeFactory {
 			}
 			return new YBeanUnionType(name, beanTypes);
 		}
+		ArrayList<YBeanType> beans = new ArrayList<>(types.length);
 		ArrayList<YMapType> maps = new ArrayList<>(types.length);
 		ArrayList<YAtomicType> atoms = new ArrayList<>(types.length);
+		ArrayList<YSeqType> arrays = new ArrayList<>(types.length);
 		for (YType t : types) {
 			if (t instanceof YMapType) {
 				maps.add((YMapType) t);
 			} else if (t instanceof YAtomicType) {
 				atoms.add((YAtomicType) t);
+			} else if (t instanceof YSeqType) {
+				arrays.add((YSeqType) t);
+			} else if (t instanceof YBeanType) {
+				beans.add((YBeanType) t);
 			} else {
 				throw new IllegalArgumentException("Union of this kind of types is not (yet) supported: "+t);
 			}
 		}
-		if (atoms.size()==1 && maps.size()==1) {
+		if (atoms.size()==1 && maps.size()==1 && arrays.size()==0 && beans.size()==0) {
 			return new YAtomAndMapUnion(name, atoms.get(0), maps.get(0));
+		} else if (atoms.size()==0 && maps.size()==0 && arrays.size()==1 && beans.size()==1) {
+			return new YBeanAndSequenceUnion(name, beans.get(0), arrays.get(0));
 		}
 		throw new IllegalArgumentException("Union of this kind of types is not (yet) supported: "+types);
 	}
@@ -280,6 +290,14 @@ public class YTypeFactory {
 		@Override
 		public boolean suggestDeprecatedProperties() {
 			return suggestDeprecatedProperties;
+		}
+
+		@Override
+		public Collection<YType> getUnionSubTypes(YType type) {
+			if (type instanceof AbstractUnionType) {
+				return ((AbstractUnionType) type).getUnionSubTypes();
+			}
+			return ImmutableList.of(type);
 		}
 	};
 
@@ -544,7 +562,6 @@ public class YTypeFactory {
 			this.isSeq = false;
 			return this;
 		}
-
 	}
 
 
@@ -793,21 +810,47 @@ public class YTypeFactory {
 		}
 	}
 
-	public class YAtomAndMapUnion extends AbstractType {
+	public class AbstractUnionType extends AbstractType {
+		protected final String name;
+		protected final YType[] subtypes;
+		
+		public AbstractUnionType(String name, YType... subTypes) {
+			this.name = name;
+			this.subtypes = subTypes;
+		}
+		@Override
+		public final String toString() {
+			if (name!=null) {
+				return name;
+			} else {
+				StringBuilder b = new StringBuilder("(");
+				boolean first = true;
+				for (YType t : subtypes) {
+					if (!first) {
+						b.append(" | ");
+					}
+					b.append(t);
+					first = false;
+				}
+				b.append(")");
+				return b.toString();
+			}
+		}
+		
+		public Collection<YType> getUnionSubTypes() {
+			return ImmutableList.copyOf(subtypes);
+		}
+	}
 
-		private String name;
+	public class YAtomAndMapUnion extends AbstractUnionType {
+
 		private YAtomicType atom;
 		private YMapType map;
 
 		public YAtomAndMapUnion(String name, YAtomicType atom, YMapType map) {
-			this.name = name;
+			super(name, atom, map);
 			this.atom = atom;
 			this.map = map;
-		}
-
-		@Override
-		public String toString() {
-			return name;
 		}
 
 		@Override
@@ -835,6 +878,38 @@ public class YTypeFactory {
 			return atom.getHintValues(dc).addAll(map.getHintValues(dc));
 		}
 
+	}
+	
+	public class YBeanAndSequenceUnion extends AbstractUnionType {
+
+		private final YBeanType bean;
+		private final YSeqType seq;
+
+		public YBeanAndSequenceUnion(String name, YBeanType yBeanType, YSeqType ySeqType) {
+			super(name, yBeanType, ySeqType);
+			this.bean = yBeanType;
+			this.seq = ySeqType;
+		}
+
+		@Override
+		public YType inferMoreSpecificType(DynamicSchemaContext dc) {
+			if (dc.isMap()) {
+				return bean;
+			} else if (dc.isSequence()) {
+				return seq;
+			}
+			return super.inferMoreSpecificType(dc);
+		}
+
+		@Override
+		public boolean isBean() {
+			return true;
+		}
+		
+		@Override
+		public boolean isSequenceable() {
+			return true;
+		}
 	}
 
 	public static class YTypedPropertyImpl implements YTypedProperty, Cloneable {
