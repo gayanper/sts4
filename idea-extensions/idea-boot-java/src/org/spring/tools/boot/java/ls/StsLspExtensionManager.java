@@ -12,8 +12,8 @@ import org.wso2.lsp4intellij.client.languageserver.requestmanager.DefaultRequest
 import org.wso2.lsp4intellij.client.languageserver.requestmanager.RequestManager;
 import org.wso2.lsp4intellij.client.languageserver.wrapper.LanguageServerWrapper;
 import org.wso2.lsp4intellij.editor.EditorEventManager;
-import org.wso2.lsp4intellij.editor.listeners.EditorMouseMotionListenerImpl;
 import org.wso2.lsp4intellij.extensions.LSPExtensionManager;
+import org.wso2.lsp4intellij.listeners.EditorMouseMotionListenerImpl;
 
 public class StsLspExtensionManager implements LSPExtensionManager {
 
@@ -27,9 +27,9 @@ public class StsLspExtensionManager implements LSPExtensionManager {
 
     @Override
     public <T extends EditorEventManager> T getExtendedEditorEventManagerFor(Editor editor,
-        DocumentListener documentListener, EditorMouseListener editorMouseListener,
-        EditorMouseMotionListenerImpl editorMouseMotionListener, RequestManager requestManager,
-        ServerOptions serverOptions, LanguageServerWrapper languageServerWrapper) {
+                                                                             DocumentListener documentListener, EditorMouseListener editorMouseListener,
+                                                                             EditorMouseMotionListenerImpl editorMouseMotionListener, RequestManager requestManager,
+                                                                             ServerOptions serverOptions, LanguageServerWrapper languageServerWrapper) {
         return (T) new EditorEventManager(editor, documentListener, editorMouseListener,
             editorMouseMotionListener, requestManager, serverOptions, languageServerWrapper);
     }
