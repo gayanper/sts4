@@ -24,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import static org.spring.tools.boot.java.ls.ApplicationUtils.runReadAction;
-import static org.spring.tools.boot.java.ls.java.CommonMappings.firstOrNull;
+import static org.spring.tools.boot.java.ls.java.CommonMappings.fromFirst;
 import static org.spring.tools.boot.java.ls.java.CommonMappings.toBinaryCPE;
 
 public class ClasspathListener {
@@ -63,15 +63,15 @@ public class ClasspathListener {
 
         Arrays.stream(ModuleManager.getInstance(project).getModules()).parallel().forEach(m -> {
             final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(m);
-            final String outputUrl = firstOrNull(moduleRootManager.orderEntries().withoutLibraries().withoutDepModules()
-                    .withoutModuleSourceEntries().withoutSdk().classes().getRoots(), f -> f.getUrl());
+            final String outputUrl = fromFirst(moduleRootManager.orderEntries().withoutLibraries().withoutDepModules()
+                    .withoutModuleSourceEntries().withoutSdk().classes().getRoots(), f -> f.getUrl()).orElse("");
             Arrays.stream(moduleRootManager.getSourceRoots(true))
                     .map(f -> mapSourceRoot(f, outputUrl)).forEach(cpes::add);
         });
 
         projectRootManager.orderEntries().forEachLibrary(l -> {
-            String sourcePath = firstOrNull(l.getFiles(OrderRootType.SOURCES), f -> f.getUrl());
-            String javadocPath = firstOrNull(l.getFiles(OrderRootType.DOCUMENTATION), f -> f.getUrl());
+            String sourcePath = fromFirst(l.getFiles(OrderRootType.SOURCES), f -> f.getUrl()).orElse("");
+            String javadocPath = fromFirst(l.getFiles(OrderRootType.DOCUMENTATION), f -> f.getUrl()).orElse("");
 
             Arrays.stream(l.getFiles(OrderRootType.CLASSES)).map(f -> {
                 CPE cpe = toBinaryCPE(f);
