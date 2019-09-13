@@ -8,6 +8,7 @@ repositories {
     maven {
         url 'https://repo.spring.io/libs-snapshot/'
     }
+    maven { url 'https://jitpack.io' }
 }
 
 intellij {
@@ -24,8 +25,8 @@ patchPluginXml {
 }
 
 dependencies {
-    compile 'org.wso2.lsp4intellij:lsp4intellij:8.0.1-SNAPSHOT'
-    compile 'org.springframework.ide.vscode:commons-java:1.10.0-20190809.091424-31'
+    implementation 'com.github.ballerina-platform:lsp4intellij:next-release-SNAPSHOT'
+    compile 'org.springframework.ide.vscode:commons-java:1.11.0-SNAPSHOT'
 }
 
 sourceSets {
