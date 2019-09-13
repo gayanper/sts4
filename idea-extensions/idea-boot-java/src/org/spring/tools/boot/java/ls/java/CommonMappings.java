@@ -11,11 +11,11 @@ public class CommonMappings {
         return CPE.binary(file.getPath().replace("!/", ""));
     }
 
-    public static String firstOrEmpty(VirtualFile[] files, Function<VirtualFile, String> transformer) {
+    public static String firstOrNull(VirtualFile[] files, Function<VirtualFile, String> transformer) {
         if (files.length > 0) {
             return transformer.apply(files[0]);
         }
-        return "";
+        return null;
     }
 
 }

@@ -22,9 +22,9 @@ public class TypeDescriptorProvider {
         data.setEnum(psiClass.isEnum());
         data.setFqName(psiClass.getQualifiedName());
         data.setInterface(psiClass.isInterface());
-        data.setSuperClassName(Optional.ofNullable(psiClass.getSuperClass()).map(c -> c.getName()).orElse(""));
+        data.setSuperClassName(Optional.ofNullable(psiClass.getSuperClass()).map(c -> c.getName()).orElse(null));
         data.setSuperInterfaceNames(Arrays.stream(psiClass.getSupers()).filter(c -> c.isInterface()).map(c -> c.getName()).toArray(i -> new String[i]));
-        data.setDeclaringType(Optional.ofNullable(psiClass.getContainingClass()).map(JvmBindings::getBindingKey).orElse(""));
+        data.setDeclaringType(Optional.ofNullable(psiClass.getContainingClass()).map(JvmBindings::getBindingKey).orElse(null));
         data.setFlags(PsiUtil.getAccessLevel(psiClass.getModifierList()));
         data.setName(psiClass.getName());
         data.setLabel(psiClass.getName());
