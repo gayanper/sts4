@@ -8,7 +8,7 @@ repositories {
     maven {
         url 'https://repo.spring.io/libs-snapshot/'
     }
-    maven { url 'https://jitpack.io' }
+    //maven { url 'https://jitpack.io' }
 }
 
 intellij {
@@ -24,9 +24,18 @@ patchPluginXml {
     sinceBuild '183.3647.12'
 }
 
+
+configurations {
+    lspProvider
+}
+
 dependencies {
-    implementation 'com.github.ballerina-platform:lsp4intellij:next-release-SNAPSHOT'
+//    implementation 'com.github.ballerina-platform:lsp4intellij:next-release-SNAPSHOT'
+    implementation 'org.wso2.lsp4intellij:lsp4intellij:8.0.1-SNAPSHOT'
     compile 'org.springframework.ide.vscode:commons-java:1.11.0-SNAPSHOT'
+    lspProvider ('org.springframework.ide.vscode:spring-boot-language-server:1.11.0-SNAPSHOT:exec') {
+        transitive = false
+    }
 }
 
 sourceSets {
@@ -41,12 +50,13 @@ sourceSets {
 }
 
 prepareSandbox.doLast {
-    def pluginServerDir = "${intellij.sandboxDirectory}/plugins/idea-boot-java/lib/server/language-server.jar"
+    def pluginServerDir = "${intellij.sandboxDirectory}/plugins/idea-boot-java/lib/server"
 
     mkdir(pluginServerDir)
     copy {
-        from("$project.projectDir/server/language-server.jar")
+        from configurations.lspProvider
         into(pluginServerDir)
+        rename("spring-boot-language-server.*\\.jar", "language-server.jar")
     }
 }
 
