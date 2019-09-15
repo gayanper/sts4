@@ -18,7 +18,7 @@ def CI_JOB = Boolean.valueOf(System.getenv("CI_JOB"))
 version = new Date().format("yyyyMMdd.HH.mm.ss.SSS")
 
 intellij {
-    plugins = ['IntelliLang', 'java']
+    plugins 'java'
     pluginName 'idea-boot-java'
     downloadSources = false
 
