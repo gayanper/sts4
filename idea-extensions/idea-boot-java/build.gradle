@@ -1,22 +1,32 @@
 plugins {
     id "org.jetbrains.intellij" version "0.4.5"
+    id 'com.jfrog.bintray' version '1.8.4'
 }
 
 repositories {
     mavenCentral()
-    mavenLocal()
     maven {
         url 'https://repo.spring.io/libs-snapshot/'
     }
     //maven { url 'https://jitpack.io' }
+    maven {
+        url 'https://dl.bintray.com/gayanper/maven'
+    }
 }
 
+def CI_JOB = Boolean.valueOf(System.getenv("CI_JOB"))
+version = new Date().format("yyyyMMdd.HH.mm.ss.SSS")
+
 intellij {
-    //version '2018.3'
     plugins = ['IntelliLang', 'java']
     pluginName 'idea-boot-java'
     downloadSources = false
-    localPath '/opt/ideaIC-2019'
+
+    if(CI_JOB) {
+        version '2018.3'
+    } else {
+        localPath '/opt/ideaIC-2019'
+    }
 }
 
 patchPluginXml {
@@ -31,7 +41,7 @@ configurations {
 
 dependencies {
 //    implementation 'com.github.ballerina-platform:lsp4intellij:next-release-SNAPSHOT'
-    implementation 'org.wso2.lsp4intellij:lsp4intellij:8.0.1-SNAPSHOT'
+    implementation 'org.wso2.lsp4intellij:lsp4intellij:20190915.12.00.00.580'
     compile 'org.springframework.ide.vscode:commons-java:1.11.0-SNAPSHOT'
     lspProvider ('org.springframework.ide.vscode:spring-boot-language-server:1.11.0-SNAPSHOT:exec') {
         transitive = false
@@ -60,8 +70,26 @@ prepareSandbox.doLast {
     }
 }
 
-publishPlugin.doFirst {
-    def pluginServerDir = "${intellij.sandboxDirectory}/plugins/idea-boot-java/lib/server/language-server.jar"
-    delete(pluginServerDir)    
-}
+tasks.bintrayUpload.dependsOn(tasks.buildPlugin)
+bintray {
+    user = System.getenv("BINTRAY_USER")
+    key = System.getenv("BINTRAY_API_KEY")
+    publish = true
+    override = true
+    pkg {
+        repo = 'idea-plugins'
+        name = 'idea-boot-java'
+        licenses = ['EPL-2.0']
+        userOrg = System.getenv("BINTRAY_USER")
+        vcsUrl = 'https://github.com/gayanper/sts4.git'
+        version {
+            name = project.version
+        }
+    }
 
+    filesSpec {
+        from 'build/distributions'
+        into '.'
+        rename 'idea-boot-java.zip', 'idea-boot-java-' + project.version + '.zip'
+    }
+}
