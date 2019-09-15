@@ -18,14 +18,15 @@ def CI_JOB = Boolean.valueOf(System.getenv("CI_JOB"))
 version = new Date().format("yyyyMMdd.HH.mm.ss.SSS")
 
 intellij {
-    plugins 'java'
     pluginName 'idea-boot-java'
     downloadSources = false
 
     if(CI_JOB) {
         version '2018.3'
+        plugins = ['IntelliLang']
     } else {
         localPath '/opt/ideaIC-2019'
+        plugins = ['IntelliLang', 'java']
     }
 }
 
