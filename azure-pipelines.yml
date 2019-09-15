@@ -10,13 +10,12 @@ pool:
   vmImage: 'ubuntu-latest'
   
 steps:
-- bash: cd idea-extensions/idea-boot-java
 - task: Gradle@2
   env:
     BINTRAY_USER: $(BINTRAY_USER)
     BINTRAY_API_KEY: $(BINTRAY_API_KEY)
   inputs:
-    workingDirectory: ''
+    workingDirectory: './idea-extensions/idea-boot-java'
     gradleWrapperFile: 'gradlew'
     gradleOptions: '-Xmx3072m'
     javaHomeOption: 'JDKVersion'
