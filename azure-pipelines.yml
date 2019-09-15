@@ -16,7 +16,7 @@ steps:
     BINTRAY_API_KEY: $(BINTRAY_API_KEY)
   inputs:
     workingDirectory: './idea-extensions/idea-boot-java'
-    gradleWrapperFile: 'gradlew'
+    gradleWrapperFile: './idea-extensions/idea-boot-java/gradlew'
     gradleOptions: '-Xmx3072m'
     javaHomeOption: 'JDKVersion'
     jdkVersionOption: '1.8'
