@@ -11,6 +11,9 @@ import com.intellij.util.messages.MessageBusConnection;
 import org.apache.commons.collections.CollectionUtils;
 import org.eclipse.lsp4j.ExecuteCommandParams;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
+import org.jetbrains.jps.model.java.JavaResourceRootType;
+import org.jetbrains.jps.model.java.JavaSourceRootType;
 import org.springframework.ide.vscode.commons.protocol.java.ClasspathListenerParams;
 import org.wso2.lsp4intellij.client.languageserver.requestmanager.RequestManager;
 import org.springframework.ide.vscode.commons.protocol.java.Classpath.CPE;
@@ -64,9 +67,17 @@ public class ClasspathListener {
         Arrays.stream(ModuleManager.getInstance(project).getModules()).parallel().forEach(m -> {
             final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(m);
             final String outputUrl = fromFirst(moduleRootManager.orderEntries().withoutLibraries().withoutDepModules()
-                    .withoutModuleSourceEntries().withoutSdk().classes().getRoots(), f -> f.getUrl()).orElse("");
-            Arrays.stream(moduleRootManager.getSourceRoots(true))
-                    .map(f -> mapSourceRoot(f, outputUrl)).forEach(cpes::add);
+                    .withoutSdk().classes().getRoots(), f -> f.getUrl()).orElse("");
+
+            moduleRootManager.getSourceRoots(JavaSourceRootType.SOURCE).stream()
+                    .map(f -> mapSourceRoot(f, outputUrl, true, false)).forEach(cpes::add);
+            moduleRootManager.getSourceRoots(JavaResourceRootType.RESOURCE).stream()
+                    .map(f -> mapSourceRoot(f, outputUrl, false, false)).forEach(cpes::add);
+
+            moduleRootManager.getSourceRoots(JavaSourceRootType.TEST_SOURCE).stream()
+                    .map(f -> mapSourceRoot(f, outputUrl, true, true)).forEach(cpes::add);
+            moduleRootManager.getSourceRoots(JavaResourceRootType.TEST_RESOURCE).stream()
+                    .map(f -> mapSourceRoot(f, outputUrl, false, true)).forEach(cpes::add);
         });
 
         projectRootManager.orderEntries().forEachLibrary(l -> {
@@ -88,8 +99,12 @@ public class ClasspathListener {
         return cpes;
     }
 
-    private CPE mapSourceRoot(VirtualFile file, String outputUrl) {
-        return CPE.source(new File(file.getPath()), new File(outputUrl));
+    private CPE mapSourceRoot(VirtualFile file, String outputUrl, boolean isJava, boolean isTest) {
+        CPE cpe = CPE.source(new File(file.getPath()), new File(outputUrl));
+        cpe.setOwn(true);
+        cpe.setTest(isTest);
+        cpe.setJavaContent(isJava);
+        return cpe;
     }
 
     private void sendClasspathCommand(Collection<CPE> entries, boolean deleted) {
