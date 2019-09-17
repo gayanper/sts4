@@ -9,6 +9,12 @@ import org.jetbrains.annotations.NotNull;
 import org.wso2.lsp4intellij.IntellijLanguageClient;
 import org.wso2.lsp4intellij.requests.Timeouts;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 public class StsPreloadingActivity extends PreloadingActivity {
 
     private static final Logger LOGGER = Logger.getInstance(StsPreloadingActivity.class);
@@ -25,20 +31,25 @@ public class StsPreloadingActivity extends PreloadingActivity {
     @Override
     public void preload(@NotNull ProgressIndicator progressIndicator) {
         if (Strings.isNullOrEmpty(System.getProperty(PTRN_JAVA + ".home"))) {
-            LOGGER.error("No " + PTRN_JAVA + "home found in system properties");
+            LOGGER.error("No java home found in system properties");
             return;
         }
 
         if (Prerequisities.isBelowJava8()) {
-            LOGGER.error("Unsupported " + PTRN_JAVA + " version, 1.8 or above is required");
+            LOGGER.error("Unsupported java version, 1.8 or above is required");
             return;
         }
 
         IntellijLanguageClient.setTimeout(Timeouts.INIT, 60000);
         IntellijLanguageClient.setTimeout(Timeouts.COMPLETION, 5000);
 
+        // construct extensions patterns for now from system properties if available
+        final String extensions = Stream.concat(Arrays.stream(System.getProperty("sts4.boot.extensions", "").split(",")),
+                Arrays.stream(new String[]{PTRN_JAVA, PTRN_APPLICATION_YAML, PTRN_APPLICATION_YML, PTRN_CONTEXT_XML,
+                        PTRN_APPLICATION_PROPERTIES})).filter(i -> !i.isEmpty()).collect(Collectors.joining(","));
+
         IntellijLanguageClient.addServerDefinition(
-                StsServiceDefinitionBuilder.forExtensions(String.format("%s,%s,%s,%s,%s", PTRN_JAVA, PTRN_APPLICATION_YAML, PTRN_APPLICATION_YML, PTRN_CONTEXT_XML, PTRN_APPLICATION_PROPERTIES))
+                StsServiceDefinitionBuilder.forExtensions(extensions)
                         .withLanguageMapping(PTRN_JAVA, LANG_ID_JAVA)
                         .withLanguageMapping("yaml", LANG_ID_YAML)
                         .withLanguageMapping("yml", LANG_ID_YAML)
