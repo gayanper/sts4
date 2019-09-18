@@ -44,12 +44,12 @@ public class StsPreloadingActivity extends PreloadingActivity {
         IntellijLanguageClient.setTimeout(Timeouts.COMPLETION, 5000);
 
         // construct extensions patterns for now from system properties if available
-        final String extensions = Stream.concat(Arrays.stream(System.getProperty("sts4.boot.extensions", "").split(",")),
+        final List<String> extensions = Stream.concat(Arrays.stream(System.getProperty("sts4.boot.extensions", "").split(",")),
                 Arrays.stream(new String[]{PTRN_JAVA, PTRN_APPLICATION_YAML, PTRN_APPLICATION_YML, PTRN_CONTEXT_XML,
-                        PTRN_APPLICATION_PROPERTIES})).filter(i -> !i.isEmpty()).collect(Collectors.joining(","));
+                        PTRN_APPLICATION_PROPERTIES})).filter(i -> !i.isEmpty()).collect(Collectors.toList());
 
         IntellijLanguageClient.addServerDefinition(
-                StsServiceDefinitionBuilder.forExtensions(extensions)
+                StsServiceDefinitionBuilder.forExtensions(extensions.stream().collect(Collectors.joining(",")))
                         .withLanguageMapping(PTRN_JAVA, LANG_ID_JAVA)
                         .withLanguageMapping("yaml", LANG_ID_YAML)
                         .withLanguageMapping("yml", LANG_ID_YAML)
@@ -60,7 +60,6 @@ public class StsPreloadingActivity extends PreloadingActivity {
                         .build());
 
         StsLspExtensionManager extensionManager = new StsLspExtensionManager();
-        Lists.newArrayList(PTRN_JAVA, PTRN_APPLICATION_YAML, PTRN_APPLICATION_YML, PTRN_CONTEXT_XML, PTRN_APPLICATION_PROPERTIES)
-                .forEach(e -> IntellijLanguageClient.addExtensionManager(e, extensionManager));
+        extensions.forEach(e -> IntellijLanguageClient.addExtensionManager(e, extensionManager));
     }
 }

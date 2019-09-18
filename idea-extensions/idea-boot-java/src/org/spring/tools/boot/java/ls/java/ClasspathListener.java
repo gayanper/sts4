@@ -11,7 +11,6 @@ import com.intellij.util.messages.MessageBusConnection;
 import org.apache.commons.collections.CollectionUtils;
 import org.eclipse.lsp4j.ExecuteCommandParams;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 import org.jetbrains.jps.model.java.JavaResourceRootType;
 import org.jetbrains.jps.model.java.JavaSourceRootType;
 import org.springframework.ide.vscode.commons.protocol.java.ClasspathListenerParams;
@@ -27,8 +26,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import static org.spring.tools.boot.java.ls.ApplicationUtils.runReadAction;
-import static org.spring.tools.boot.java.ls.java.CommonMappings.fromFirst;
-import static org.spring.tools.boot.java.ls.java.CommonMappings.toBinaryCPE;
+import static org.spring.tools.boot.java.ls.java.CommonUtils.fromFirst;
+import static org.spring.tools.boot.java.ls.java.CommonUtils.toBinaryCPE;
 
 public class ClasspathListener {
     private static final Logger LOGGER = Logger.getInstance(ClasspathListener.class);
@@ -66,8 +65,8 @@ public class ClasspathListener {
 
         Arrays.stream(ModuleManager.getInstance(project).getModules()).parallel().forEach(m -> {
             final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(m);
-            final String outputUrl = fromFirst(moduleRootManager.orderEntries().withoutLibraries().withoutDepModules()
-                    .withoutSdk().classes().getRoots(), f -> f.getUrl()).orElse("");
+            final String outputUrl = CommonUtils.outputDir(m);
+            final String testOutputUrl = CommonUtils.testOutputDir(m);
 
             moduleRootManager.getSourceRoots(JavaSourceRootType.SOURCE).stream()
                     .map(f -> mapSourceRoot(f, outputUrl, true, false)).forEach(cpes::add);
@@ -75,9 +74,9 @@ public class ClasspathListener {
                     .map(f -> mapSourceRoot(f, outputUrl, false, false)).forEach(cpes::add);
 
             moduleRootManager.getSourceRoots(JavaSourceRootType.TEST_SOURCE).stream()
-                    .map(f -> mapSourceRoot(f, outputUrl, true, true)).forEach(cpes::add);
+                    .map(f -> mapSourceRoot(f, testOutputUrl, true, true)).forEach(cpes::add);
             moduleRootManager.getSourceRoots(JavaResourceRootType.TEST_RESOURCE).stream()
-                    .map(f -> mapSourceRoot(f, outputUrl, false, true)).forEach(cpes::add);
+                    .map(f -> mapSourceRoot(f, testOutputUrl, false, true)).forEach(cpes::add);
         });
 
         projectRootManager.orderEntries().forEachLibrary(l -> {
