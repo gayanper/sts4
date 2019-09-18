@@ -8,6 +8,9 @@ import com.intellij.lang.jvm.types.JvmType;
 import com.intellij.openapi.application.ex.ApplicationUtil;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.InheritedJdkOrderEntry;
+import com.intellij.openapi.roots.JdkOrderEntry;
+import com.intellij.openapi.roots.OrderEntry;
 import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.libraries.LibraryUtil;
@@ -15,6 +18,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.psi.util.ClassUtil;
 import com.intellij.psi.util.PsiUtil;
+import org.springframework.ide.vscode.commons.protocol.java.Classpath;
 import org.springframework.ide.vscode.commons.protocol.java.JavaTypeData;
 import org.springframework.ide.vscode.commons.protocol.java.JavaTypeData.JavaTypeKind;
 import org.springframework.ide.vscode.commons.protocol.java.TypeData;
@@ -104,19 +108,27 @@ public class TypeProvider {
 
     private ClasspathEntryData findCPE(PsiClass psiClass) {
         VirtualFile virtualFile = psiClass.getContainingFile().getVirtualFile();
-        Library library = LibraryUtil.findLibraryByClass(psiClass.getQualifiedName(), psiClass.getProject());
+        OrderEntry library = LibraryUtil.findLibraryEntry(virtualFile, psiClass.getProject());
         if (library == null) {
             log.warn("No classpath entry library found for class: " + psiClass.getQualifiedName());
             return null;
         } else {
             return Arrays.stream(library.getFiles(OrderRootType.CLASSES))
-                    .map(CommonUtils::toBinaryCPE).findFirst().map(cpe -> {
+                    .findFirst().map(file -> {
                         ClasspathEntryData data = new ClasspathEntryData();
-                        data.setModule(library.getName());
-                        data.setCpe(cpe);
+                        data.setModule(library.getPresentableName());
+                        data.setCpe(toCPE(library, file));
                         return data;
                     }).orElse(null);
         }
+    }
+
+    private Classpath.CPE toCPE(OrderEntry entry, VirtualFile file) {
+        Classpath.CPE cpe = CommonUtils.toBinaryCPE(file);
+        cpe.setJavaContent(true);
+        cpe.setSystem(entry instanceof JdkOrderEntry);
+        cpe.setOwn(false);
+        return cpe;
     }
 
     private List<AnnotationData> mapAnnotations(PsiAnnotation[] annotations) {

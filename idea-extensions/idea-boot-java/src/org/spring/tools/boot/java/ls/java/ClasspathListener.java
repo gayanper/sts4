@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.*;
+import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.messages.MessageBusConnection;
 import org.apache.commons.collections.CollectionUtils;
@@ -24,6 +25,7 @@ import java.net.MalformedURLException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import static org.spring.tools.boot.java.ls.ApplicationUtils.runReadAction;
 import static org.spring.tools.boot.java.ls.java.CommonUtils.fromFirst;
@@ -79,29 +81,38 @@ public class ClasspathListener {
                     .map(f -> mapSourceRoot(f, testOutputUrl, false, true)).forEach(cpes::add);
         });
 
-        projectRootManager.orderEntries().forEachLibrary(l -> {
-            String sourcePath = fromFirst(l.getFiles(OrderRootType.SOURCES), f -> f.getUrl()).orElse("");
-            String javadocPath = fromFirst(l.getFiles(OrderRootType.DOCUMENTATION), f -> f.getUrl()).orElse("");
-
-            Arrays.stream(l.getFiles(OrderRootType.CLASSES)).map(f -> {
-                CPE cpe = toBinaryCPE(f);
-                try {
-                    cpe.setJavadocContainerUrl(new File(javadocPath).toURL());
-                    cpe.setSourceContainerUrl(new File(sourcePath).toURL());
-                } catch (MalformedURLException e) {
-                    LOGGER.error(e.getMessage(), e);
-                }
-                return cpe;
-            }).forEach(cpes::add);
+        projectRootManager.orderEntries().withoutSdk().forEachLibrary(l -> {
+            processLibrary(cpes, false, l::getFiles);
             return true;
         });
+        processLibrary(cpes, true, projectRootManager.getProjectSdk().getRootProvider()::getFiles);
         return cpes;
+    }
+
+    private void processLibrary(List<CPE> cpes, boolean sdk, Function<OrderRootType, VirtualFile[]> files) {
+        String sourcePath = fromFirst(files.apply(OrderRootType.SOURCES), f -> f.getUrl()).orElse("");
+        String javadocPath = fromFirst(files.apply(OrderRootType.DOCUMENTATION), f -> f.getUrl()).orElse("");
+
+        Arrays.stream(files.apply(OrderRootType.CLASSES)).map(f -> {
+            CPE cpe = toBinaryCPE(f);
+            try {
+                cpe.setJavadocContainerUrl(new File(javadocPath).toURL());
+                cpe.setSourceContainerUrl(new File(sourcePath).toURL());
+            } catch (MalformedURLException e) {
+                LOGGER.error(e.getMessage(), e);
+            }
+            cpe.setOwn(false);
+            cpe.setSystem(sdk);
+            cpe.setJavaContent(true);
+            return cpe;
+        }).forEach(cpes::add);
     }
 
     private CPE mapSourceRoot(VirtualFile file, String outputUrl, boolean isJava, boolean isTest) {
         CPE cpe = CPE.source(new File(file.getPath()), new File(outputUrl));
         cpe.setOwn(true);
         cpe.setTest(isTest);
+        cpe.setSystem(false);
         cpe.setJavaContent(isJava);
         return cpe;
     }
