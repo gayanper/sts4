@@ -110,7 +110,7 @@ public class TypeProvider {
             return null;
         } else {
             return Arrays.stream(library.getFiles(OrderRootType.CLASSES))
-                    .map(CommonMappings::toBinaryCPE).findFirst().map(cpe -> {
+                    .map(CommonUtils::toBinaryCPE).findFirst().map(cpe -> {
                         ClasspathEntryData data = new ClasspathEntryData();
                         data.setModule(library.getName());
                         data.setCpe(cpe);
