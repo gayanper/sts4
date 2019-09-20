@@ -164,7 +164,15 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
     public CompletableFuture<List<TypeDescriptorData>> javaSuperTypes(JavaTypeHierarchyParams params) {
         return runReadAction(() -> {
             return CompletableFuture.completedFuture(findClass(params).map(clazz -> {
-                return typeDescriptorProvider.descriptors(clazz.getSupers());
+                List<TypeDescriptorData> descriptors = typeDescriptorProvider.descriptors(clazz.getSupers());
+                if (params.isIncludeFocusType()) {
+                    List<TypeDescriptorData> supers = new ArrayList<>(descriptors.size() + 1);
+                    supers.addAll(typeDescriptorProvider.descriptors(new PsiClass[] { clazz }));
+                    supers.addAll(descriptors);
+                    return supers;
+                } else {
+                    return descriptors;
+                }
             }).orElse(Collections.emptyList()));
         });
     }
