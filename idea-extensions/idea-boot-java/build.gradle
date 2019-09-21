@@ -5,6 +5,7 @@ plugins {
 
 repositories {
     mavenCentral()
+    mavenLocal()
     maven {
         url 'https://repo.spring.io/libs-snapshot/'
     }
@@ -42,7 +43,7 @@ configurations {
 
 dependencies {
 //    implementation 'com.github.ballerina-platform:lsp4intellij:next-release-SNAPSHOT'
-    implementation 'org.wso2.lsp4intellij:lsp4intellij:20190915.12.00.00.580'
+    implementation 'org.wso2.lsp4intellij:lsp4intellij:20190921.17.44.39.251'
     compile 'org.springframework.ide.vscode:commons-java:1.11.0-SNAPSHOT'
     lspProvider ('org.springframework.ide.vscode:spring-boot-language-server:1.11.0-SNAPSHOT:exec') {
         transitive = false
