@@ -78,6 +78,7 @@ public final class StsServiceDefinitionBuilder {
                 commandBuilder.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=1044");
             }
             //commandBuilder.add("-Dlanguageserver.boot.enable-jandex-index=true");
+            commandBuilder.add("-Dsts.lsp.client=vscode");
             commandBuilder.add(LAUNCHER);
 
             if (serverListenerEnabled) {

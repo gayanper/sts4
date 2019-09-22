@@ -6,17 +6,23 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.psi.JavaPsiFacade;
-import com.intellij.psi.PsiClass;
+import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vfs.VfsUtil;
+import com.intellij.openapi.vfs.VfsUtilCore;
+import com.intellij.psi.*;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
 import com.intellij.psi.search.searches.ClassInheritorsSearch;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.MarkupContent;
+import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.jsonrpc.messages.Tuple;
 import org.spring.tools.boot.java.ls.highlight.HighlightProcessor;
 import org.spring.tools.boot.java.ls.highlight.InlayHighlightProcessor;
 import org.spring.tools.boot.java.ls.highlight.RangeHighlightProcessor;
 import org.spring.tools.boot.java.ls.java.ClasspathListener;
+import org.spring.tools.boot.java.ls.java.PsiResolver;
 import org.spring.tools.boot.java.ls.java.TypeDescriptorProvider;
 import org.spring.tools.boot.java.ls.java.TypeProvider;
 import org.springframework.ide.vscode.commons.protocol.CursorMovement;
@@ -29,6 +35,10 @@ import org.wso2.lsp4intellij.client.DefaultLanguageClient;
 import org.wso2.lsp4intellij.editor.EditorEventManager;
 import org.wso2.lsp4intellij.utils.FileUtils;
 
+import javax.swing.text.html.Option;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
@@ -47,11 +57,14 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
 
     private TypeDescriptorProvider typeDescriptorProvider;
 
+    private PsiResolver psiResolver;
+
     public StsLanuageClient(ClientContext clientContext) {
         super(clientContext);
         processors = ImmutableList.of(new RangeHighlightProcessor(), new InlayHighlightProcessor());
         typeProvider = new TypeProvider(clientContext.getProject());
         typeDescriptorProvider = new TypeDescriptorProvider();
+        psiResolver = new PsiResolver(clientContext.getProject());
     }
     private void processHighlights(HighlightParams params, String documentUri, Editor editor,
                                    Document document) {
@@ -131,7 +144,26 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
 
     @Override
     public CompletableFuture<Location> javaLocation(org.springframework.ide.vscode.commons.protocol.java.JavaDataParams params) {
-        return CompletableFuture.completedFuture(null);
+        return CompletableFuture.supplyAsync(() -> runReadAction(() -> {
+            final Tuple.Two<PsiClass, PsiMember> elements = psiResolver.resolvePsiElements(params.getBindingKey());
+            if (elements.getFirst() == null) {
+                LOGGER.warn(String.format("Failed to resolve location for binding %s", params.getBindingKey()));
+                return null;
+            }
+
+            String url = VfsUtilCore.fixIDEAUrl(elements.getFirst().getContainingFile().getVirtualFile().getUrl());
+            Range range = Optional.ofNullable(elements.getSecond())
+                    .map(this::mapToRange)
+                    .orElseGet(() -> mapToRange(elements.getFirst()));
+            return new Location(url, range);
+        }));
+    }
+
+    private Range mapToRange(PsiElement element) {
+        Document document = PsiDocumentManager.getInstance(getContext().getProject()).getDocument(element.getContainingFile());
+        final int line = document.getLineNumber(element.getTextOffset());
+        final int column = 0; //todo: need to calculate the column
+        return new Range(new Position(line, column), new Position(line, column));
     }
 
     @Override
