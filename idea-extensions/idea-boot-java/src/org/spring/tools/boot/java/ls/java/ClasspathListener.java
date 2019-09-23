@@ -40,6 +40,8 @@ public class ClasspathListener {
     private MessageBusConnection messageBusConnection;
     private LSModuleRootListener moduleRootListener;
 
+    private Object requestManagerSync = new Object();
+
     private ClasspathListener(String callbackCommandId, Project project) {
         this.callbackCommandId = callbackCommandId;
         this.project = project;
@@ -62,7 +64,9 @@ public class ClasspathListener {
     public void unregister() {
         messageBusConnection.disconnect();
         messageBusConnection = null;
-        requestManager = null;
+        synchronized (requestManagerSync) {
+            requestManager = null;
+        }
     }
 
     private List<org.springframework.ide.vscode.commons.protocol.java.Classpath.CPE> collectCPEs() {
@@ -128,14 +132,19 @@ public class ClasspathListener {
         Classpath classpath = new Classpath(Lists.newArrayList(entries));
         commandParams.setArguments(ClasspathArgument.argument(project.getName())
                 .projectUri(FileUtils.projectToUri(project)).classpath(classpath).arguments());
-        CompletableFuture<Object> result = requestManager.executeCommand(commandParams);
-        try {
-            if (!"done".equals(result.get())) {
-                LOGGER.error("executeCommand failed for callback " + callbackCommandId
-                        + " with error code:" + result.get().toString());
+
+        synchronized (requestManagerSync) {
+            if(requestManager != null) {
+                CompletableFuture<Object> result = requestManager.executeCommand(commandParams);
+                try {
+                    if (!"done".equals(result.get())) {
+                        LOGGER.error("executeCommand failed for callback " + callbackCommandId
+                                + " with error code:" + result.get().toString());
+                    }
+                } catch (ExecutionException | InterruptedException e) {
+                    LOGGER.error(e);
+                }
             }
-        } catch (ExecutionException | InterruptedException e) {
-            LOGGER.error(e);
         }
     }
 
