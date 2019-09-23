@@ -38,6 +38,7 @@ public class ClasspathListener {
     private Project project;
     private RequestManager requestManager;
     private MessageBusConnection messageBusConnection;
+    private LSModuleRootListener moduleRootListener;
 
     private ClasspathListener(String callbackCommandId, Project project) {
         this.callbackCommandId = callbackCommandId;
@@ -51,8 +52,11 @@ public class ClasspathListener {
     public void register(RequestManager requestManager) {
         this.requestManager = requestManager;
         messageBusConnection = project.getMessageBus().connect(project);
-        messageBusConnection.subscribe(ProjectTopics.PROJECT_ROOTS, new LSModuleRootListener());
-        sendClasspathCommand(runReadAction(this::collectCPEs), false);
+        moduleRootListener = new LSModuleRootListener();
+        messageBusConnection.subscribe(ProjectTopics.PROJECT_ROOTS, moduleRootListener);
+        List<CPE> list = runReadAction(this::collectCPEs);
+        sendClasspathCommand(list, false);
+        moduleRootListener.updateBefore(list);
     }
 
     public void unregister() {
@@ -140,16 +144,18 @@ public class ClasspathListener {
 
         @Override
         public void rootsChanged(@NotNull ModuleRootEvent event) {
-            List<CPE> after = collectCPEs();
-            Collection<CPE> removed = CollectionUtils.subtract(before, after);
+            CompletableFuture.supplyAsync(() -> {
+                List<CPE> after = runReadAction(ClasspathListener.this::collectCPEs);
+                Collection<CPE> removed = CollectionUtils.subtract(before, after);
 
-            sendClasspathCommand(removed, true);
-            sendClasspathCommand(after, false);
+                sendClasspathCommand(removed, true);
+                sendClasspathCommand(after, false);
+                return after;
+            }).thenAccept(this::updateBefore);
         }
 
-        @Override
-        public void beforeRootsChange(@NotNull ModuleRootEvent event) {
-            before = collectCPEs();
+        public void updateBefore(List<CPE> before) {
+            this.before = before;
         }
     }
 }
