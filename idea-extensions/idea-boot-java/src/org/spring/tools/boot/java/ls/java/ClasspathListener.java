@@ -135,9 +135,11 @@ public class ClasspathListener {
 
         synchronized (requestManagerSync) {
             if(requestManager != null) {
-                CompletableFuture<Object> result = requestManager.executeCommand(commandParams);
+                CompletableFuture<Object> result =
+                       Optional.ofNullable(requestManager.executeCommand(commandParams))
+                               .orElse(CompletableFuture.completedFuture("stopped"));
                 try {
-                    if (!"done".equals(result.get())) {
+                    if (!"stopped".equals(result.get()) && !"done".equals(result.get())) {
                         LOGGER.error("executeCommand failed for callback " + callbackCommandId
                                 + " with error code:" + result.get().toString());
                     }
