@@ -5,8 +5,12 @@ import com.intellij.ProjectTopics;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.projectRoots.JavaSdk;
+import com.intellij.openapi.projectRoots.JavaSdkVersion;
+import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.*;
 import com.intellij.openapi.roots.libraries.Library;
+import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.messages.MessageBusConnection;
 import org.apache.commons.collections.CollectionUtils;
@@ -22,6 +26,7 @@ import org.wso2.lsp4intellij.utils.FileUtils;
 
 import java.io.File;
 import java.net.MalformedURLException;
+import java.nio.file.FileSystem;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -93,8 +98,25 @@ public class ClasspathListener {
             processLibrary(cpes, false, l::getFiles);
             return true;
         });
-        processLibrary(cpes, true, projectRootManager.getProjectSdk().getRootProvider()::getFiles);
+        processLibrary(cpes, true, getSDKClasspathFiles(projectRootManager));
         return cpes;
+    }
+
+    @NotNull
+    private Function<OrderRootType, VirtualFile[]> getSDKClasspathFiles(ProjectRootManager projectRootManager) {
+        final Sdk projectSdk = projectRootManager.getProjectSdk();
+        if (JavaSdk.getInstance().isOfVersionOrHigher(projectSdk, JavaSdkVersion.JDK_1_9)) {
+            return orderRootType -> {
+                if (orderRootType == OrderRootType.CLASSES) {
+                    final File file = new File(projectSdk.getHomePath(), "lib/jrt-fs.jar");
+                    final VirtualFile fsFile = LocalFileSystem.getInstance().findFileByIoFile(file);
+                    return new VirtualFile[]{fsFile};
+                } else {
+                    return projectSdk.getRootProvider().getFiles(orderRootType);
+                }
+            };
+        }
+        return projectSdk.getRootProvider()::getFiles;
     }
 
     private void processLibrary(List<CPE> cpes, boolean sdk, Function<OrderRootType, VirtualFile[]> files) {
