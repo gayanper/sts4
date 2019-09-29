@@ -43,7 +43,7 @@ configurations {
 
 dependencies {
 //    implementation 'com.github.ballerina-platform:lsp4intellij:next-release-SNAPSHOT'
-    implementation 'org.wso2.lsp4intellij:lsp4intellij:20190928.06.15.10.584'
+    implementation 'org.wso2.lsp4intellij:lsp4intellij:20190929.06.22.10.723'
     compile 'org.springframework.ide.vscode:commons-java:1.11.0-SNAPSHOT'
     lspProvider ('org.springframework.ide.vscode:spring-boot-language-server:1.11.0-SNAPSHOT:exec') {
         transitive = false
