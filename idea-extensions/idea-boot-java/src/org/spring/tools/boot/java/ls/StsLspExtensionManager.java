@@ -1,5 +1,7 @@
 package org.spring.tools.boot.java.ls;
 
+import com.intellij.ide.ApplicationActivationStateManager;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.editor.event.EditorMouseListener;
@@ -13,6 +15,7 @@ import org.eclipse.lsp4j.ServerCapabilities;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
 import org.jetbrains.annotations.NotNull;
+import org.spring.tools.boot.java.ls.extensions.StsLabelProvider;
 import org.wso2.lsp4intellij.client.ClientContext;
 import org.wso2.lsp4intellij.client.languageserver.ServerOptions;
 import org.wso2.lsp4intellij.client.languageserver.requestmanager.DefaultRequestManager;
@@ -20,6 +23,7 @@ import org.wso2.lsp4intellij.client.languageserver.requestmanager.RequestManager
 import org.wso2.lsp4intellij.client.languageserver.wrapper.LanguageServerWrapper;
 import org.wso2.lsp4intellij.editor.EditorEventManager;
 import org.wso2.lsp4intellij.extensions.LSPExtensionManager;
+import org.wso2.lsp4intellij.extensions.LSPLabelProvider;
 import org.wso2.lsp4intellij.listeners.EditorMouseMotionListenerImpl;
 
 import java.util.Arrays;
@@ -72,5 +76,9 @@ public class StsLspExtensionManager implements LSPExtensionManager {
                 .anyMatch(SPRING_PREDICATE);
     }
 
-
+    @NotNull
+    @Override
+    public LSPLabelProvider getLabelProvider() {
+        return new StsLabelProvider();
+    }
 }
