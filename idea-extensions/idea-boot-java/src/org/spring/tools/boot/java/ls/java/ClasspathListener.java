@@ -32,6 +32,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
+import static org.spring.tools.boot.java.ls.ApplicationUtils.executeOnIntellijPooledThread;
 import static org.spring.tools.boot.java.ls.ApplicationUtils.runReadAction;
 import static org.spring.tools.boot.java.ls.java.CommonUtils.fromFirst;
 import static org.spring.tools.boot.java.ls.java.CommonUtils.toBinaryCPE;
@@ -174,17 +175,22 @@ public class ClasspathListener {
 
     private class LSModuleRootListener implements ModuleRootListener {
         private List<CPE> before = Collections.emptyList();
+        private Object lock = new Object();
 
         @Override
         public void rootsChanged(@NotNull ModuleRootEvent event) {
-            CompletableFuture.supplyAsync(() -> {
-                List<CPE> after = runReadAction(ClasspathListener.this::collectCPEs);
-                Collection<CPE> removed = CollectionUtils.subtract(before, after);
-
-                sendClasspathCommand(removed, true);
-                sendClasspathCommand(after, false);
-                return after;
-            }).thenAccept(this::updateBefore);
+            // Since the following code is async if there are two consective root change events there execution can
+            // happen paralelly. So we need to synchronize the execution so that only one async call will run at a
+            // given time.
+            executeOnIntellijPooledThread(() -> {
+                synchronized (lock) {
+                    sendClasspathCommand(before, true);
+                    List<CPE> after = runReadAction(ClasspathListener.this::collectCPEs);
+                    sendClasspathCommand(after, false);
+                    updateBefore(after);
+                }
+                return null;
+            });
         }
 
         public void updateBefore(List<CPE> before) {
