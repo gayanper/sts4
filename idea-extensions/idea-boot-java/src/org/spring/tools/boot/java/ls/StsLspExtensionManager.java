@@ -1,12 +1,10 @@
 package org.spring.tools.boot.java.ls;
 
-import com.intellij.ide.ApplicationActivationStateManager;
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.lang.xml.XMLLanguage;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.editor.event.EditorMouseListener;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.roots.FileIndexFacade;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -16,6 +14,7 @@ import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
 import org.jetbrains.annotations.NotNull;
 import org.spring.tools.boot.java.ls.extensions.StsLabelProvider;
+import org.spring.tools.boot.java.ls.lang.StsLanguageValidator;
 import org.wso2.lsp4intellij.client.ClientContext;
 import org.wso2.lsp4intellij.client.languageserver.ServerOptions;
 import org.wso2.lsp4intellij.client.languageserver.requestmanager.DefaultRequestManager;
@@ -36,6 +35,8 @@ public class StsLspExtensionManager implements LSPExtensionManager {
 
     private static final Predicate<? super VirtualFile> SPRING_PREDICATE =
             (f) -> f.getPath().contains("spring-core") || f.getPath().contains("spring-boot");
+
+    private StsLanguageValidator stsLanguageValidator = new StsLanguageValidator();
 
     @Override
     public <T extends DefaultRequestManager> T getExtendedRequestManagerFor(
@@ -68,7 +69,15 @@ public class StsLspExtensionManager implements LSPExtensionManager {
     public boolean isFileContentSupported(@NotNull PsiFile file) {
         return runReadAction(() ->
                 Optional.ofNullable(FileIndexFacade.getInstance(file.getProject()).getModuleForFile(file.getVirtualFile()))
-                        .map(this::isSpringModule).orElse(false));
+                        .map(this::isSpringModule).orElse(false)) && isSupportedLanguage(file);
+    }
+
+    private boolean isSupportedLanguage(PsiFile file) {
+        if (file.getLanguage().isKindOf(XMLLanguage.INSTANCE)) {
+            return stsLanguageValidator.isXmlSpringBeanFile(file.getVirtualFile(), file.getProject());
+        }
+        // for all other extension return true for now.
+        return true;
     }
 
     private boolean isSpringModule(Module module) {

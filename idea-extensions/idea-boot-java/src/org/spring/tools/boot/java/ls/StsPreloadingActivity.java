@@ -25,7 +25,7 @@ public class StsPreloadingActivity extends PreloadingActivity {
     public static final String LANG_ID_YAML = "spring-boot-properties-yaml";
     private static final String PTRN_APPLICATION_YAML = "application.*\\.yaml";
     private static final String PTRN_APPLICATION_YML = "application.*\\.yml";
-    private static final String PTRN_CONTEXT_XML = ".*[Cc]ontext.*\\.xml";
+    private static final String PTRN_CONTEXT_XML = "xml";
     private static final String PTRN_APPLICATION_PROPERTIES = "application.*\\.properties";
 
     @Override

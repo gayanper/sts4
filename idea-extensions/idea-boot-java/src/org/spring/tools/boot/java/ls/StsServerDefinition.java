@@ -10,4 +10,5 @@ public class StsServerDefinition extends RawCommandServerDefinition {
         super(ext, languageIds, command);
     }
 
+
 }
