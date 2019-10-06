@@ -15,8 +15,6 @@ public class SpringBootGutterIconRenderer extends GutterIconRenderer {
 
     public static SpringBootGutterIconRenderer INSTANCE = new SpringBootGutterIconRenderer();
 
-    private Supplier<Icon> icon = Suppliers.memoize(() -> IconLoader.getIcon("/icons/boot-icon.png"));
-
     @Override
     public boolean equals(Object o) {
         return this == o;
@@ -30,6 +28,6 @@ public class SpringBootGutterIconRenderer extends GutterIconRenderer {
     @NotNull
     @Override
     public Icon getIcon() {
-        return icon.get();
+        return StsIcons.getBootIcon();
     }
 }

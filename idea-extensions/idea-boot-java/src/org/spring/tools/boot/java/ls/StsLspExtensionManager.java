@@ -13,6 +13,7 @@ import org.eclipse.lsp4j.ServerCapabilities;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
 import org.jetbrains.annotations.NotNull;
+import org.spring.tools.boot.java.ls.extensions.StsIconProvider;
 import org.spring.tools.boot.java.ls.extensions.StsLabelProvider;
 import org.spring.tools.boot.java.ls.lang.StsLanguageValidator;
 import org.wso2.lsp4intellij.client.ClientContext;
@@ -20,6 +21,7 @@ import org.wso2.lsp4intellij.client.languageserver.ServerOptions;
 import org.wso2.lsp4intellij.client.languageserver.requestmanager.DefaultRequestManager;
 import org.wso2.lsp4intellij.client.languageserver.requestmanager.RequestManager;
 import org.wso2.lsp4intellij.client.languageserver.wrapper.LanguageServerWrapper;
+import org.wso2.lsp4intellij.contributors.icon.LSPIconProvider;
 import org.wso2.lsp4intellij.editor.EditorEventManager;
 import org.wso2.lsp4intellij.extensions.LSPExtensionManager;
 import org.wso2.lsp4intellij.extensions.LSPLabelProvider;
@@ -89,5 +91,11 @@ public class StsLspExtensionManager implements LSPExtensionManager {
     @Override
     public LSPLabelProvider getLabelProvider() {
         return new StsLabelProvider();
+    }
+
+    @NotNull
+    @Override
+    public LSPIconProvider getIconProvider() {
+        return new StsIconProvider();
     }
 }

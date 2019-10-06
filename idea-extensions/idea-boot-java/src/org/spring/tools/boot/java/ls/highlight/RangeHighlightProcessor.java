@@ -13,6 +13,7 @@ import java.awt.Color;
 import java.util.Collection;
 import org.eclipse.lsp4j.CodeLens;
 import org.eclipse.lsp4j.Range;
+import org.spring.tools.boot.java.ls.SpringBootGutterIconRenderer;
 
 public class RangeHighlightProcessor implements HighlightProcessor {
 
@@ -46,7 +47,7 @@ public class RangeHighlightProcessor implements HighlightProcessor {
         RangeHighlighter highlighter = editor.getMarkupModel()
             .addRangeHighlighter(startOffset, endOffset, HighlighterLayer.ERROR, attrs,
                 HighlighterTargetArea.EXACT_RANGE);
-        //highlighter.setGutterIconRenderer(SpringBootGutterIconRenderer.INSTANCE)
+        highlighter.setGutterIconRenderer(SpringBootGutterIconRenderer.INSTANCE);
         ranges.put(documentUri, highlighter);
     }
 }
