@@ -13,6 +13,7 @@ import com.intellij.psi.*;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
 import com.intellij.psi.search.searches.ClassInheritorsSearch;
+import com.intellij.psi.util.ClassUtil;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.MarkupContent;
 import org.eclipse.lsp4j.Position;
@@ -21,10 +22,7 @@ import org.eclipse.lsp4j.jsonrpc.messages.Tuple;
 import org.spring.tools.boot.java.ls.highlight.HighlightProcessor;
 import org.spring.tools.boot.java.ls.highlight.InlayHighlightProcessor;
 import org.spring.tools.boot.java.ls.highlight.RangeHighlightProcessor;
-import org.spring.tools.boot.java.ls.java.ClasspathListener;
-import org.spring.tools.boot.java.ls.java.PsiResolver;
-import org.spring.tools.boot.java.ls.java.TypeDescriptorProvider;
-import org.spring.tools.boot.java.ls.java.TypeProvider;
+import org.spring.tools.boot.java.ls.java.*;
 import org.springframework.ide.vscode.commons.protocol.CursorMovement;
 import org.springframework.ide.vscode.commons.protocol.HighlightParams;
 import org.springframework.ide.vscode.commons.protocol.ProgressParams;
@@ -139,7 +137,18 @@ class StsLanuageClient extends DefaultLanguageClient implements STS4LanguageClie
 
     @Override
     public CompletableFuture<String> javadocHoverLink(org.springframework.ide.vscode.commons.protocol.java.JavaDataParams params) {
-        return CompletableFuture.completedFuture("");
+        return runReadAction(() -> {
+            PsiClass psiClass = ClassUtil.findPsiClass(PsiManager.getInstance(getContext().getProject()),
+                    JavaUtils.typeBindingKeyToFqName(params.getBindingKey()));
+
+            if (psiClass != null) {
+                String url = VfsUtilCore.fixIDEAUrl(psiClass.getContainingFile().getVirtualFile().getUrl());
+                return CompletableFuture.completedFuture(url);
+            } else {
+                LOGGER.warn("Failed to find source file url for : " + params.getBindingKey());
+                return CompletableFuture.completedFuture("");
+            }
+        });
     }
 
     @Override
