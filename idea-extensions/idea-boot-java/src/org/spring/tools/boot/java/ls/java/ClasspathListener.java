@@ -79,7 +79,7 @@ public class ClasspathListener {
         final ProjectRootManager projectRootManager = ProjectRootManager.getInstance(project);
         final List<org.springframework.ide.vscode.commons.protocol.java.Classpath.CPE> cpes = new ArrayList<>();
 
-        Arrays.stream(ModuleManager.getInstance(project).getModules()).parallel().forEach(m -> {
+        Arrays.asList(ModuleManager.getInstance(project).getModules()).forEach(m -> {
             final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(m);
             final String outputUrl = CommonUtils.outputDir(m);
             final String testOutputUrl = CommonUtils.testOutputDir(m);
