@@ -39,6 +39,7 @@ import static org.spring.tools.boot.java.ls.java.CommonUtils.toBinaryCPE;
 
 public class ClasspathListener {
     private static final Logger LOGGER = Logger.getInstance(ClasspathListener.class);
+    private static final VirtualFile[] EMPTY_VIRTUAL_FILES = new VirtualFile[0];
 
     private String callbackCommandId;
     private Project project;
@@ -79,7 +80,7 @@ public class ClasspathListener {
         final ProjectRootManager projectRootManager = ProjectRootManager.getInstance(project);
         final List<org.springframework.ide.vscode.commons.protocol.java.Classpath.CPE> cpes = new ArrayList<>();
 
-        Arrays.stream(ModuleManager.getInstance(project).getModules()).parallel().forEach(m -> {
+        Arrays.asList(ModuleManager.getInstance(project).getModules()).forEach(m -> {
             final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(m);
             final String outputUrl = CommonUtils.outputDir(m);
             final String testOutputUrl = CommonUtils.testOutputDir(m);
@@ -105,19 +106,20 @@ public class ClasspathListener {
 
     @NotNull
     private Function<OrderRootType, VirtualFile[]> getSDKClasspathFiles(ProjectRootManager projectRootManager) {
-        final Sdk projectSdk = projectRootManager.getProjectSdk();
-        if (JavaSdk.getInstance().isOfVersionOrHigher(projectSdk, JavaSdkVersion.JDK_1_9)) {
-            return orderRootType -> {
-                if (orderRootType == OrderRootType.CLASSES) {
-                    final File file = new File(projectSdk.getHomePath(), "lib/jrt-fs.jar");
-                    final VirtualFile fsFile = LocalFileSystem.getInstance().findFileByIoFile(file);
-                    return new VirtualFile[]{fsFile};
-                } else {
-                    return projectSdk.getRootProvider().getFiles(orderRootType);
-                }
-            };
-        }
-        return projectSdk.getRootProvider()::getFiles;
+        return Optional.ofNullable(projectRootManager.getProjectSdk()).map(sdk -> {
+            if (JavaSdk.getInstance().isOfVersionOrHigher(sdk, JavaSdkVersion.JDK_1_9)) {
+                return (Function<OrderRootType, VirtualFile[]>) orderRootType -> {
+                    if (orderRootType == OrderRootType.CLASSES) {
+                        final File file = new File(sdk.getHomePath(), "lib/jrt-fs.jar");
+                        final VirtualFile fsFile = LocalFileSystem.getInstance().findFileByIoFile(file);
+                        return new VirtualFile[]{fsFile};
+                    } else {
+                        return sdk.getRootProvider().getFiles(orderRootType);
+                    }
+                };
+            }
+            return (Function<OrderRootType, VirtualFile[]>) sdk.getRootProvider()::getFiles;
+        }).orElse(ort -> EMPTY_VIRTUAL_FILES);
     }
 
     private void processLibrary(List<CPE> cpes, boolean sdk, Function<OrderRootType, VirtualFile[]> files) {
