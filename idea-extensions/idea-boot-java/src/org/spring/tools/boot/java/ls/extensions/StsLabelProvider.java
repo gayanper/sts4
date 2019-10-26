@@ -9,14 +9,14 @@ import com.intellij.openapi.vfs.VirtualFile;
 import org.eclipse.lsp4j.SymbolInformation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.wso2.lsp4intellij.extensions.LSPLabelProvider;
+import org.wso2.lsp4intellij.contributors.label.LSPDefaultLabelProvider;
 
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Optional;
 
-public class StsLabelProvider implements LSPLabelProvider {
+public class StsLabelProvider extends LSPDefaultLabelProvider {
     private static final Logger LOGGER = Logger.getInstance(StsLabelProvider.class);
 
     @Nullable
