@@ -24,7 +24,7 @@ import org.wso2.lsp4intellij.client.languageserver.wrapper.LanguageServerWrapper
 import org.wso2.lsp4intellij.contributors.icon.LSPIconProvider;
 import org.wso2.lsp4intellij.editor.EditorEventManager;
 import org.wso2.lsp4intellij.extensions.LSPExtensionManager;
-import org.wso2.lsp4intellij.extensions.LSPLabelProvider;
+import org.wso2.lsp4intellij.contributors.label.LSPLabelProvider;
 import org.wso2.lsp4intellij.listeners.EditorMouseMotionListenerImpl;
 
 import java.util.Arrays;
