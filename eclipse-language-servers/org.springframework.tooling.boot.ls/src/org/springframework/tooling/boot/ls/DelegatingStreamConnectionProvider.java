@@ -40,6 +40,8 @@ import org.springsource.ide.eclipse.commons.livexp.core.ValueListener;
 import org.springsource.ide.eclipse.commons.livexp.ui.Disposable;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 
 /**
  * if the system property "boot-java-ls-port" exists, delegate to the socket-based
@@ -163,6 +165,11 @@ public class DelegatingStreamConnectionProvider implements StreamConnectionProvi
 			//keepChecking defaults to true. Boot dash automatic remote apps should override this explicitly.
 			//Reason. All other 'sources' of remote apps are 'manual' and we want them to default to
 			//'keepChecking' even if the user doesn't set this to true manually.
+		
+		private String processId = null;
+
+		public RemoteBootAppData() {
+		}
 
 		public RemoteBootAppData(String jmxurl, String host) {
 			super();
@@ -209,26 +216,45 @@ public class DelegatingStreamConnectionProvider implements StreamConnectionProvi
 		public void setKeepChecking(boolean keepChecking) {
 			this.keepChecking = keepChecking;
 		}
+
+		public String getProcessId() {
+			return processId;
+		}
+
+		public void getProcessId(String processId) {
+			this.processId = processId;
+		}
 	}
 	
 	private void sendConfiguration() {
 		Map<String, Object> settings = new HashMap<>();
 		Map<String, Object> bootJavaObj = new HashMap<>();
-		Map<String, Object> bootHint = new HashMap<>();
+		Map<String, Object> liveInformation = new HashMap<>();
+		Map<String, Object> liveInformationAutomaticTracking = new HashMap<>();
+		Map<String, Object> liveInformationFetchData = new HashMap<>();
 		Map<String, Object> supportXML = new HashMap<>();
 		Map<String, Object> bootChangeDetection = new HashMap<>();
 		Map<String, Object> scanTestJavaSources = new HashMap<>();
 
 		IPreferenceStore preferenceStore = BootLanguageServerPlugin.getDefault().getPreferenceStore();
-		bootHint.put("on", preferenceStore.getBoolean(Constants.PREF_BOOT_HINTS));
+
+		liveInformationAutomaticTracking.put("on", preferenceStore.getBoolean(Constants.PREF_LIVE_INFORMATION_AUTOMATIC_TRACKING_ENABLED));
+		liveInformationAutomaticTracking.put("delay", preferenceStore.getInt(Constants.PREF_LIVE_INFORMATION_AUTOMATIC_TRACKING_DELAY));
+		
+		liveInformationFetchData.put("max-retries", preferenceStore.getInt(Constants.PREF_LIVE_INFORMATION_FETCH_DATA_RETRY_MAX_NO));
+		liveInformationFetchData.put("retry-delay-in-seconds", preferenceStore.getInt(Constants.PREF_LIVE_INFORMATION_FETCH_DATA_RETRY_DELAY_IN_SECONDS));
+		
+		liveInformation.put("automatic-tracking", liveInformationAutomaticTracking);
+		liveInformation.put("fetch-data", liveInformationFetchData);
+		
 		supportXML.put("on", preferenceStore.getBoolean(Constants.PREF_SUPPORT_SPRING_XML_CONFIGS));
-		supportXML.put("scan-folders-globs", preferenceStore.getString(Constants.PREF_XML_CONFIGS_SCAN_FOLDERS));
+		supportXML.put("scan-folders", preferenceStore.getString(Constants.PREF_XML_CONFIGS_SCAN_FOLDERS));
 		supportXML.put("hyperlinks", preferenceStore.getString(Constants.PREF_XML_CONFIGS_HYPERLINKS));
 		supportXML.put("content-assist", preferenceStore.getString(Constants.PREF_XML_CONFIGS_CONTENT_ASSIST));
 		bootChangeDetection.put("on", preferenceStore.getBoolean(Constants.PREF_CHANGE_DETECTION));
 		scanTestJavaSources.put("on", preferenceStore.getBoolean(Constants.PREF_SCAN_JAVA_TEST_SOURCES));
 
-		bootJavaObj.put("boot-hints", bootHint);
+		bootJavaObj.put("live-information", liveInformation);
 		bootJavaObj.put("support-spring-xml-config", supportXML);
 		bootJavaObj.put("change-detection", bootChangeDetection);
 		bootJavaObj.put("scan-java-test-sources", scanTestJavaSources);
@@ -286,6 +312,10 @@ public class DelegatingStreamConnectionProvider implements StreamConnectionProvi
 				app.setKeepChecking("true".equals(keepChecking));
 			}
 			return app;
+		} else if (incomingData instanceof Map) {
+			Gson gson = new Gson();
+			JsonElement tree = gson.toJsonTree(incomingData);
+			return gson.fromJson(tree, RemoteBootAppData.class);
 		}
 		throw new IllegalArgumentException("Invalid remote app data: "+incomingData);
 	}

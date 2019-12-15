@@ -164,6 +164,13 @@ public class VscodeCompletionEngineAdapter implements VscodeCompletionEngine {
 					}
 				}
 				list.setItems(items);
+				//This is a hack is no  longer  needed but keeping it as  a reference:
+				// See: https://bugs.eclipse.org/bugs/show_bug.cgi?id=535823
+				// Reason  hack is not needed is because of the fix in: https://www.pivotaltracker.com/story/show/159667257
+				
+//				if (LspClient.currentClient()==Client.ECLIPSE) {
+//					list.setIsIncomplete(true); 
+//				}
 				return list;
 			})
 			.doOnNext(x -> log.info("Got {} completions", x.getItems().size()))

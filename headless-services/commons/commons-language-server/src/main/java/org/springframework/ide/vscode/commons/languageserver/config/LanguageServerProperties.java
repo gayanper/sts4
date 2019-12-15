@@ -1,3 +1,13 @@
+/*******************************************************************************
+ * Copyright (c) 2018 Pivotal, Inc.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * https://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Pivotal, Inc. - initial API and implementation
+ *******************************************************************************/
 package org.springframework.ide.vscode.commons.languageserver.config;
 
 import java.util.Map;
@@ -28,10 +38,7 @@ public class LanguageServerProperties {
 	private String extensionId;
 
 	/**
-	 * List of characters that trigger completions. Note: because of this bug:
-	 * https://github.com/spring-projects/sts4/issues/193 this setting is currently
-	 * being ignored when the client is vscode to avoid breaking Java completion
-	 * triggers.
+	 * List of characters that trigger completions.
 	 */
 	private Map<String, String> completionTriggerCharacters;
 	

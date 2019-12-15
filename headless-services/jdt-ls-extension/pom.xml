@@ -17,10 +17,6 @@
 	<url>https://spring.io/tools</url>
 	<inceptionYear>2007</inceptionYear>
 
-	<prerequisites>
-		<maven>3.0</maven>
-	</prerequisites>
-
 	<licenses>
 		<license>
 			<name>Eclipse Public License v1.0</name>
@@ -138,6 +134,7 @@
 					<storepass>${signing.store.password}</storepass>
 					<keypass>${signing.key.password}</keypass>
 					<tsa>http://sha256timestamp.ws.symantec.com/sha256/timestamp</tsa>
+<!--					<tsa>http://timestamp.digicert.com</tsa> -->
 				</configuration>
 			</plugin>
 

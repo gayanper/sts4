@@ -32,7 +32,6 @@ import org.eclipse.lsp4j.ApplyWorkspaceEditParams;
 import org.eclipse.lsp4j.ApplyWorkspaceEditResponse;
 import org.eclipse.lsp4j.ClientCapabilities;
 import org.eclipse.lsp4j.CodeLensOptions;
-import org.eclipse.lsp4j.CompletionOptions;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.ExecuteCommandOptions;
@@ -117,10 +116,19 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 	private STS4LanguageClient client;
 	private final LanguageServerProperties props;
 
-	private ProgressService progressService = (String taskId, String statusMsg) -> {
-		STS4LanguageClient client = SimpleLanguageServer.this.client;
-		if (client!=null) {
-			client.progress(new ProgressParams(taskId, statusMsg));
+	private ProgressService progressService = new ProgressService()  {
+
+		@Override
+		public void progressEvent(String taskId, String statusMsg) {
+			STS4LanguageClient client = SimpleLanguageServer.this.client;
+			if (client!=null) {
+				client.progress(new ProgressParams(taskId, statusMsg));
+			}
+		}
+
+		@Override
+		public void progressDone(String taskId) {
+			progressEvent(taskId, null);
 		}
 	};
 
@@ -401,10 +409,16 @@ public final class SimpleLanguageServer implements Sts4LanguageServer, LanguageC
 			codeLensOptions.setResolveProvider(hasCodeLensResolveProvider());
 			c.setCodeLensProvider(codeLensOptions );
 		}
-		if (hasExecuteCommandSupport && hasQuickFixes()) {
-			c.setExecuteCommandProvider(new ExecuteCommandOptions(ImmutableList.of(
-					CODE_ACTION_COMMAND_ID
-			)));
+		if (hasExecuteCommandSupport && (
+				hasQuickFixes() || 
+				!commands.isEmpty()
+		)) {
+			ImmutableList.Builder<String> supportedCommands = ImmutableList.builder();
+			if (hasQuickFixes()) {
+				supportedCommands.add(CODE_ACTION_COMMAND_ID);
+			}
+			supportedCommands.addAll(commands.keySet());
+			c.setExecuteCommandProvider(new ExecuteCommandOptions(supportedCommands.build()));
 		}
 		if (hasWorkspaceSymbolHandler()) {
 			c.setWorkspaceSymbolProvider(true);

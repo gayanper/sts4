@@ -1,3 +1,18 @@
+## 2019-11-21 (4.4.2 RELEASE)
+
+* _(Spring Boot)_ bugfix: CTRL-click in yaml file inaccurate (for 'nested' properties)
+
+## 2019-10-24 (4.4.1 RELEASE)
+
+* _(Spring Boot)_ Provide UI to allow user to explicitly connect/disconnect to/from processes to collect Live Hover data from. See the [wiki](https://github.com/spring-projects/sts4/wiki/Live-Application-Information#managing-live-data-connections-to-local-processes) for details.
+* _(Spring Boot)_ enhancement: Goto Symbol now also works from XML bean files.
+* _(Spring Boot)_: improve performance of xml symbol scanning.
+
+## 2019-09-19 (4.4.0 RELEASE)
+
+* _(Spring Boot)_ fixed: Adding/removing bean in XML file doesn't update the symbol index
+* _(VSCode)_ fixed: show error message when manually configured JDK is not there
+
 ## 2019-08-13 (4.3.2 RELEASE)
 
 * _(Spring Boot)_ fixed: CTRL-click navigation does not handle properties on super class correctly ([#326](https://github.com/spring-projects/sts4/issues/326))

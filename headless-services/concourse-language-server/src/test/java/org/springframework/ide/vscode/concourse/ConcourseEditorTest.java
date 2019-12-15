@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2016 Pivotal, Inc.
+ * Copyright (c) 2016, 2019 Pivotal, Inc.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -46,7 +46,6 @@ import org.springframework.ide.vscode.languageserver.testharness.CodeAction;
 import org.springframework.ide.vscode.languageserver.testharness.Editor;
 import org.springframework.ide.vscode.languageserver.testharness.LanguageServerHarness;
 import org.springframework.ide.vscode.languageserver.testharness.SynchronizationPoint;
-import org.springframework.test.annotation.Repeat;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import com.google.common.collect.ImmutableList;
@@ -73,7 +72,7 @@ public class ConcourseEditorTest {
 	@Before public void setup() throws Exception {
 		serverInitializer.setMaxCompletions(100);
 	}
-
+	
 	@Test public void addSingleRequiredPropertiesQuickfix() throws Exception {
 		Editor editor = harness.newEditor(
 				"resources:\n" +
@@ -306,9 +305,6 @@ public class ConcourseEditorTest {
 				, // ==============
 				"<*>"
 				, // =>
-				"aggregate:\n" +
-				"    - <*>"
-				, // ==============
 				"do:\n" +
 				"    - <*>"
 				, // ==============
@@ -323,6 +319,9 @@ public class ConcourseEditorTest {
 				, // ==============
 				"try:\n" +
 				"      <*>"
+				, // ==============
+				"aggregate:\n" +
+				"    - <*>"
 		);
 	}
 
@@ -496,7 +495,7 @@ public class ConcourseEditorTest {
 		editor.assertHoverContains("tags", "Any step can be directed at a pool of workers");
 		editor.assertHoverContains("timeout", "amount of time to limit the step's execution");
 	}
-	
+
 	@Test
 	public void taskVarsReconcile() throws Exception {
 		Editor editor;
@@ -778,7 +777,9 @@ public class ConcourseEditorTest {
 	public void valueCompletions() throws Exception {
 		String [] builtInResourceTypes = {
 				"git", "hg", "time", "s3", "archive",
-				"semver", "github-release", "docker-image", "tracker",
+				"semver", "github-release", 
+				"docker-image", "registry-image", 
+				"tracker",
 				"pool", "cf",
 				"bosh-io-release", "bosh-io-stemcell", "bosh-deployment",
 				"vagrant-cloud"
@@ -1759,11 +1760,53 @@ public class ConcourseEditorTest {
 	}
 
 	@Test
+	public void resourceTypeAttributeReconcile() throws Exception {
+		//Example from https://github.com/spring-projects/sts4/issues/382
+		Editor editor = harness.newEditor(
+				"resource_types:\n" + 
+				"\n" + 
+				"- name: cogito\n" + 
+				"  type: registry-image\n" + 
+				"  check_every: 24h\n" + 
+				"  source:\n" + 
+				"    repository: ((docker-registry))/cogito"
+		);
+		editor.assertProblems(/*none*/);
+
+		//More elaborate example
+		editor = harness.newEditor(
+				"resource_types:\n" + 
+				"- name: cogito\n" + 
+				"  type: registry-image\n" + 
+				"  check_every: bad-duration\n" + 
+				"  privileged: is-priviliged\n" +
+				"  params:\n" +
+				"    foo_param: bar\n"+
+				"    format: rootfs\n" +
+				"  tags: tags-list\n" +
+				"  unique_version_history: is-unique-hist\n" +
+				"  source:\n" + 
+				"    repository: ((docker-registry))/cogito"
+		);
+		editor.assertProblems(
+				"bad-duration|Duration",
+				"is-priviliged|boolean",
+				"foo_param|Unknown",
+				"tags-list|Sequence",
+				"is-unique-hist|boolean"
+		);
+	}
+	
+	@Test
 	public void resourceTypeAttributeHovers() throws Exception {
 		Editor editor = harness.newEditor(
 				"resource_types:\n" +
 				"- name: s3-multi\n" +
 				"  type: docker-image\n" +
+				"  check_every: bad-duration\n" + 
+				"  privileged: is-priviliged\n" +
+				"  tags: tags-list\n" +
+				"  unique_version_history: is-unique-hist\n" +
 				"  source:\n" +
 				"    repository: kdvolder/s3-resource-simple\n"
 		);
@@ -1771,6 +1814,10 @@ public class ConcourseEditorTest {
 		editor.assertHoverContains("name", "This name will be referenced by `resources` defined within the same pipeline");
 		editor.assertHoverContains("type", 2, "used to provide the resource type's container image");
 		editor.assertHoverContains("source", 2, "The location of the resource type's resource");
+		editor.assertHoverContains("privileged", "containers will be run with full capabilities");
+		editor.assertHoverContains("check_every", "interval on which to check for new versions");
+		editor.assertHoverContains("tags", "list of tags to determine which workers");
+		editor.assertHoverContains("unique_version_history", "resource type will have a version history that is unique to the resource");
 	}
 
 	@Test
@@ -1788,7 +1835,7 @@ public class ConcourseEditorTest {
 
 		editor.assertHoverContains("name", "The name of the resource");
 		editor.assertHoverContains("type", "The type of the resource. Each worker advertises");
-  	editor.assertHoverContains("icon", "name of a [Material Design Icon]");
+		editor.assertHoverContains("icon", "name of a [Material Design Icon]");
 		editor.assertHoverContains("source", 2, "The location of the resource");
 		editor.assertHoverContains("webhook_token", "web hooks can be sent to trigger an immediate *check* of the resource");
 		editor.assertHoverContains("check_every", "The interval on which to check for new versions");
@@ -1906,7 +1953,29 @@ public class ConcourseEditorTest {
 				"repo^ # <- bad|should define 'branch'"
 		);
 	}
+	
+	@Test public void repositoryImageResourceIsKnown() throws Exception {
+		Editor editor;
 
+		editor = harness.newEditor(
+				"jobs:\n" + 
+				"- name: noise-maker\n" + 
+				"  plan:\n" + 
+				"  - task: make-noise\n" + 
+				"    config:\n" + 
+				"      platform: linux\n" + 
+				"      image_resource:\n" + 
+				"        type: registry-image\n" + 
+				"        source:\n" + 
+				"          repository: ubuntu:18.04\n" + 
+				"      run:\n" + 
+				"        path: echo\n" + 
+				"        args:\n" + 
+				"        - \"Hello world!\"" 
+		);
+		editor.assertProblems(/*None*/);
+	}
+	
 	@Test public void dockerImageResourceSourceReconcileAndHovers() throws Exception {
 		Editor editor;
 
@@ -2098,6 +2167,125 @@ public class ConcourseEditorTest {
 		editor.assertHoverContains("cache_from", "An array of images to consider as cache");
 		editor.assertHoverContains("load_bases", "Same as `load_base`, but takes an array");
 		editor.assertHoverContains("target_name", "Specify the name of the target build stage");
+	}
+	
+	@Test public void registryImageResourceeSourceReconcileAndHovers() throws Exception {
+		Editor editor;
+
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: my-docker-image\n" +
+				"  type: registry-image\n" +
+				"  source:\n" +
+				"    tag: latest\n"
+		);
+		editor.assertProblems(
+			"my-docker-image|Unused 'Resource'",
+			"source|'repository' is required"
+		);
+
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: my-docker-image\n" +
+				"  type: registry-image\n" +
+				"  source:\n" +
+				"    repository: kdvolder/sts4-build-env\n" +
+				"    tag: latest\n" +
+				"    username: kdvolder\n" +
+				"    password: {{docker_password}}\n" +
+				"    debug: no-bool\n" +
+				"    content_trust: {}\n"
+		);
+		editor.assertProblems(
+				"my-docker-image|Unused 'Resource'",
+				"no-bool|boolean",
+				"content_trust|Properties [repository_key, repository_key_id, repository_passphrase] are required"
+		);
+
+		editor.assertHoverContains("repository", "The name of the repository");
+		editor.assertHoverContains("tag", "name of the tag");
+		editor.assertHoverContains("username", "username to use");
+		editor.assertHoverContains("password", "password to use");
+		editor.assertHoverContains("debug",  "debugging output will be printed");
+		
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: my-docker-image\n" +
+				"  type: registry-image\n" +
+				"  source:\n" +
+				"    repository: kdvolder/sts4-build-env\n" +
+				"    content_trust:\n"+
+				"      server: notary.server\n" +
+				"      repository_key: repokey\n" +
+				"      repository_key_id: keyid\n" +
+				"      repository_passphrase: Secret phrase\n" +
+				"      tls_key: tlskey\n" +
+				"      tls_cert: tlscert\n" +
+				"      bogus_prop:\n"
+		);
+		editor.assertProblems(
+				"my-docker-image|Unused 'Resource'",
+				"bogus_prop|Unknown property"
+		);
+		editor.assertHoverContains("server", "URL for the notary server");
+		editor.assertHoverContains("repository_key_id", "ID used to sign the trusted collection");
+		editor.assertHoverContains("repository_key", "Target key used to sign");
+		editor.assertHoverContains("repository_passphrase", "passphrase of the signing/target key");
+		editor.assertHoverContains("tls_key", "TLS key for the notary server");
+		editor.assertHoverContains("tls_cert", "TLS certificate for the notary server");
+	}
+
+	@Test public void registryImageResourceGetParamsReconcileAndHovers() throws Exception {
+		Editor editor;
+
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: my-docker-image\n" +
+				"  type: registry-image\n" +
+				"jobs:\n" +
+				"- name: a-job\n" +
+				"  plan:\n" +
+				"  - get: my-docker-image\n" +
+				"    params:\n" +
+				"      format: bad-format\n" +
+				"      bogus: bad"
+		);
+
+		editor.assertProblems(
+				"bad-format|Valid values are: [oci, rootfs]",
+				"bogus|Unknown property"
+		);
+
+		editor.assertHoverContains("format", "The format to fetch as");
+	}
+
+	@Test public void registryImageResourcePutParamsReconcileAndHovers() throws Exception {
+		Editor editor;
+
+		editor = harness.newEditor(
+				"resources:\n" +
+				"- name: my-docker-image\n" +
+				"  type: registry-image\n" +
+				"jobs:\n" +
+				"- name: a-job\n" +
+				"  plan:\n" +
+				"  - put: my-docker-image\n" +
+				"    params:\n" +
+				"      image: path/to/image/tarball\n" +
+				"      additional_tags: path/to/tagsfiles\n" +
+				"      bogus: bad\n" +
+				"    get_params:\n" +
+				"      format: bad-format\n"
+		);
+
+		editor.assertProblems(
+				"bogus|Unknown property",
+				"bad-format|Valid values are: [oci, rootfs]"
+		);
+
+		editor.assertHoverContains("image", 4, "path to the OCI image tarball");
+		editor.assertHoverContains("additional_tags", "list of tag values");
+		editor.assertHoverContains("format", "The format to fetch as");
 	}
 
 	@Test public void s3ResourceSourceInitialResourceImplications() throws Exception {
@@ -3161,7 +3349,8 @@ public class ConcourseEditorTest {
 		);
 
 		editor.assertGotoDefinition(editor.positionOf("get: my-git", "my-git"),
-				editor.rangeOf("- name: my-git", "my-git")
+				editor.rangeOf("- name: my-git", "my-git"),
+				editor.rangeOf("get: my-git", "my-git")
 		);
 	}
 
@@ -3184,7 +3373,8 @@ public class ConcourseEditorTest {
 				"    - prepare-stuff\n"
 		);
 		editor.assertGotoDefinition(editor.positionOf("- prepare-stuff", "prepare-stuff"),
-				editor.rangeOf("- name: prepare-stuff", "prepare-stuff")
+				editor.rangeOf("- name: prepare-stuff", "prepare-stuff"),
+				editor.rangeOf("- prepare-stuff", "prepare-stuff")
 		);
 	}
 
@@ -3199,7 +3389,8 @@ public class ConcourseEditorTest {
 				"  type: slack-notification\n"
 		);
 		editor.assertGotoDefinition(editor.positionOf("type: slack-notification", "slack-notification"),
-				editor.rangeOf("- name: slack-notification", "slack-notification")
+				editor.rangeOf("- name: slack-notification", "slack-notification"),
+				editor.rangeOf("type: slack-notification", "slack-notification")
 		);
 	}
 
@@ -3263,7 +3454,7 @@ public class ConcourseEditorTest {
 				//built-in:
 				"git", "hg", "time", "s3",
 				"archive", "semver", "github-release",
-				"docker-image", "tracker", "pool", "cf", "bosh-io-release",
+				"docker-image", "registry-image", "tracker", "pool", "cf", "bosh-io-release",
 				"bosh-io-stemcell", "bosh-deployment", "vagrant-cloud"
 		};
 		Arrays.sort(goodNames);
@@ -3296,6 +3487,34 @@ public class ConcourseEditorTest {
 		);
 	}
 
+	@Test
+	public void taskWithYamlParams() throws Exception {
+		Editor editor;
+		
+		editor = harness.newEditor(LanguageId.CONCOURSE_TASK,
+			"---\n" +
+			"platform: linux\n" +
+			"image_resource:\n" +
+			"  type: docker-image\n" +
+			"  source:\n" +
+			"    repository: czero/platform-automation\n" +
+			"params:\n" +
+			"  DEBUG: false\n" +
+			"  VCENTER_URL: \n" +
+			"  VCENTER_INSECURE: true\n" +
+			"  NODE_COUNT: 4\n" +
+			"  IDRAC_IPS:\n" +
+			"    - 1.1.1.1\n" +
+			"    - 2.2.2.2\n" +
+			"inputs:\n" +
+			"  - name: pipeline\n" +
+			"run:\n" +
+			"  path: pipeline/tasks/re-image-hosts/task.sh\n"
+			
+		);
+		editor.assertProblems(/*NONE*/);
+	}
+	
 	@Test public void reconcileTaskFileToplevelProperties() throws Exception {
 		Editor editor;
 
@@ -3796,8 +4015,13 @@ public class ConcourseEditorTest {
 		Editor editor = harness.newEditor(
 				"jobs:\n" +
 				"  - name: job\n" +
+				"    old_name: formerly-known-as\n" +
 				"    serial: true\n" +
 				"    build_logs_to_retain: 10\n" +
+				"    build_log_retention:\n" +
+				"      days: 1\n" +
+				"      builds: 2\n" +
+				"      minimum_succeeded_builds: 1\n" +
 				"    serial_groups: []\n" +
 				"    max_in_flight: 3\n" +
 				"    public: false\n" +
@@ -3806,6 +4030,8 @@ public class ConcourseEditorTest {
 				"    plan:\n" +
 				"      - get: code\n" +
 				"    on_failure:\n" +
+				"      put: code\n" +
+				"    on_error:\n" +
 				"      put: code\n" +
 				"    on_success:\n" +
 				"      put: code\n" +
@@ -3820,10 +4046,14 @@ public class ConcourseEditorTest {
 				"    uri: blah\n" +
 				"    branch: master\n"
 		);
-		editor.assertProblems(/*NONE*/);
 		editor.assertHoverContains("name", "The name of the job");
+		editor.assertHoverContains("old_name", "history of old job will be inherited to the new one");
 		editor.assertHoverContains("serial", "execute one-by-one");
-		editor.assertHoverContains("build_logs_to_retain", "only the last specified number of builds");
+		editor.assertHoverContains("build_logs_to_retain", "Deprecated");
+		editor.assertHoverContains("build_log_retention", "Configures the retention policy for build logs");
+		editor.assertHoverContains("days", "Keep logs for builds which have finished within the specified number of days");
+		editor.assertHoverContains("builds", "Keep logs for the last specified number of builds");
+		editor.assertHoverContains("minimum_succeeded_builds", "Keep logs for at least N successful builds");
 		editor.assertHoverContains("serial_groups", "referencing the same tags will be serialized");
 		editor.assertHoverContains("max_in_flight", "maximum number of builds to run at a time");
 		editor.assertHoverContains("public", "build log of this job will be viewable");
@@ -3831,6 +4061,7 @@ public class ConcourseEditorTest {
 		editor.assertHoverContains("interruptible", "worker will not wait on the builds");
 		editor.assertHoverContains("on_success", "Step to execute when the job succeeds");
 		editor.assertHoverContains("on_failure", "Step to execute when the job fails");
+		editor.assertHoverContains("on_error", "Step to execute when the job errors");
 		editor.assertHoverContains("on_abort", "Step to execute when the job aborts");
 		editor.assertHoverContains("ensure", "Step to execute regardless");
 	}
@@ -3839,8 +4070,13 @@ public class ConcourseEditorTest {
 		Editor editor = harness.newEditor(
 				"jobs:\n" +
 				"  - name: job\n" +
+				"    old_name: formerly-known-as\n" +
 				"    serial: isSerial\n" +
 				"    build_logs_to_retain: retainers\n" +
+				"    build_log_retention:\n" +
+				"      days: retain-days\n" +
+				"      builds: retain-builds\n" +
+				"      minimum_succeeded_builds: succ-builds\n" +
 				"    serial_groups: no-list\n" +
 				"    max_in_flight: flying-number\n" +
 				"    public: publicize\n" +
@@ -3850,10 +4086,12 @@ public class ConcourseEditorTest {
 				"      - get: a-resource\n" +
 				"    on_failure:\n" +
 				"      put: b-resource\n" +
-				"    on_success:\n" +
-				"      put: a-resource\n" +
-				"    ensure:\n" +
+				"    on_error:\n" +
 				"      put: c-resource\n" +
+				"    on_success:\n" +
+				"      put: d-resource\n" +
+				"    ensure:\n" +
+				"      put: e-resource\n" +
 				"resources:\n" +
 				"- name: b-resource\n" +
 				"  type: git\n" +
@@ -3867,7 +4105,11 @@ public class ConcourseEditorTest {
 		);
 		editor.assertProblems(
 				"isSerial|boolean",
+				"build_logs_to_retain|Deprecated",
 				"retainers|Number",
+				"retain-days|Number",
+				"retain-builds|Number",
+				"succ-builds|Number",
 				"no-list|Expecting a 'Sequence'",
 				"flying-number|Number",
 				"publicize|boolean",
@@ -3875,8 +4117,9 @@ public class ConcourseEditorTest {
 				"nointerrupt|boolean",
 				"a-resource|resource does not exist",
 				"b-resource|should define 'branch'",
-				"a-resource|resource does not exist",
 				"c-resource|resource does not exist",
+				"d-resource|resource does not exist",
+				"e-resource|resource does not exist",
 				"code|Unused"
 		);
 	}
@@ -3894,16 +4137,19 @@ public class ConcourseEditorTest {
 
 		editor.assertCompletionLabels(
 				//completions for current (i.e Job) context:
-				"build_logs_to_retain",
+				"build_log_retention",
 				"disable_manual_trigger",
 				"ensure",
 				"interruptible",
 				"max_in_flight",
+				"old_name",
 				"on_abort",
+				"on_error",
 				"on_failure",
 				"on_success",
 				"serial",
 				"serial_groups",
+				"build_logs_to_retain",
 				//"name", exists
 				//"plan", exists
 				//"public", exists
@@ -3924,13 +4170,13 @@ public class ConcourseEditorTest {
 				"→ timeout",
 				"→ vars",
 				//Completions with '-'
-				"- aggregate",
 				"- do",
 				"- get",
 				"- in_parallel",
 				"- put",
 				"- task",
 				"- try",
+				"- aggregate",
 				//Dedented completions
 				"← groups",
 				"← resource_types",
@@ -4119,7 +4365,7 @@ public class ConcourseEditorTest {
 			"jobs:\n" +
 			"- name: build-it\n" +
 			"  plan:\n" +
-			"  - aggregate:\n" +
+			"  - in_parallel:\n" +
 			"    # - put: version\n" +
 			"    - get: source-repo\n" +
 			"- name: test-it\n" +
@@ -4144,7 +4390,7 @@ public class ConcourseEditorTest {
 			"jobs:\n" +
 			"- name: build-it\n" +
 			"  plan:\n" +
-			"  - aggregate:\n" +
+			"  - in_parallel:\n" +
 			"    - put: version\n" +
 			"    # - get: source-repo\n" +
 			"- name: test-it\n" +
@@ -4170,7 +4416,7 @@ public class ConcourseEditorTest {
 			"jobs:\n" +
 			"- name: build-it\n" +
 			"  plan:\n" +
-			"  - aggregate:\n" +
+			"  - in_parallel:\n" +
 			"    - put: version\n" +
 			"    - get: source-repo\n" +
 			"- name: test-it\n" +
@@ -4233,7 +4479,10 @@ public class ConcourseEditorTest {
 				"    - build-it"
 		);
 
-		editor.assertProblems("get: ^versi^|resource does not exist");
+		editor.assertProblems(
+				"aggregate|Deprecated",
+				"get: ^versi^|resource does not exist"
+		);
 	}
 
 	@Test public void relaxedContentAssistContextForListItem_sameLine() throws Exception {
@@ -4365,6 +4614,14 @@ public class ConcourseEditorTest {
 				"  plan:\n" +
 				"  in_"
 		);
+		editor.assertCompletionWithLabel("- in_parallel",
+				"jobs:\n" +
+				"- name: build-docker-image\n" +
+				"  serial: true\n" +
+				"  plan:\n" +
+				"  - in_parallel:\n" +
+				"      <*>"
+		);
 	}
 
 	@Test public void relaxedContentAssist_primary_properties() throws Exception{
@@ -4472,7 +4729,7 @@ public class ConcourseEditorTest {
 				"jobs:\n" +
 				"- name: build-it\n" +
 				"  plan:\n" +
-				"  - aggregate:\n" +
+				"  - in_parallel:\n" +
 				"    - get: not-used\n" +  // <-- This isn't a real use but looks like one!
 				"      resource: version\n" +
 				"    - put: source-repo\n"

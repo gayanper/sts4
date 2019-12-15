@@ -12,6 +12,7 @@
 package org.springframework.ide.vscode.languageserver.testharness;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.springframework.ide.vscode.languageserver.testharness.LanguageServerHarness.getDocString;
@@ -38,7 +39,7 @@ import org.eclipse.lsp4j.CompletionList;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DocumentSymbol;
 import org.eclipse.lsp4j.Hover;
-import org.eclipse.lsp4j.Location;
+import org.eclipse.lsp4j.LocationLink;
 import org.eclipse.lsp4j.MarkedString;
 import org.eclipse.lsp4j.MarkupContent;
 import org.eclipse.lsp4j.Position;
@@ -223,6 +224,11 @@ public class Editor {
 			.collect(Collectors.toList());
 		assertEquals(ImmutableList.copyOf(expectedHighlights), actualHighlights);
 		return ranges;
+	}
+
+	public void assertNoHighlights() throws Exception {
+		HighlightParams highlights = harness.getHighlights(false, doc);
+		assertNull(highlights);
 	}
 
 	/**
@@ -739,7 +745,7 @@ public class Editor {
 		return "Editor(\n"+getText()+"\n)";
 	}
 
-	public void assertLinkTargets(String hoverOver, Set<Location> expectedLocations) throws Exception {
+	public void assertLinkTargets(String hoverOver, Set<LocationLink> expectedLocations) throws Exception {
 		int pos = getRawText().indexOf(hoverOver);
 		if (pos>=0) {
 			pos += hoverOver.length() / 2;
@@ -747,7 +753,7 @@ public class Editor {
 		assertTrue("Not found in editor: '"+hoverOver+"'", pos>=0);
 
 		TextDocumentPositionParams params = new TextDocumentPositionParams(new TextDocumentIdentifier(getUri()), doc.toPosition(pos));
-		List<? extends Location> definitions = harness.getDefinitions(params);
+		List<? extends LocationLink> definitions = harness.getDefinitions(params);
 
 		assertEquals(ImmutableSet.copyOf(expectedLocations), ImmutableSet.copyOf(definitions));
 	}
@@ -760,7 +766,7 @@ public class Editor {
 		assertTrue("Not found in editor: '"+hoverOver+"'", pos>=0);
 
 		TextDocumentPositionParams params = new TextDocumentPositionParams(new TextDocumentIdentifier(getUri()), doc.toPosition(pos));
-		List<? extends Location> definitions = harness.getDefinitions(params);
+		List<? extends LocationLink> definitions = harness.getDefinitions(params);
 
 		assertTrue(definitions == null || definitions.isEmpty());
 	}
@@ -816,12 +822,12 @@ public class Editor {
 		ignoredTypes.add(type.toString());
 	}
 
-	public void assertGotoDefinition(Position pos, Range expectedTarget) throws Exception {
+	public void assertGotoDefinition(Position pos, Range expectedTarget, Range highlightRange) throws Exception {
 		TextDocumentIdentifier textDocumentId = doc.getId();
 		TextDocumentPositionParams params = new TextDocumentPositionParams(textDocumentId, textDocumentId.getUri(), pos);
-		List<? extends Location> defs = harness.getDefinitions(params);
+		List<? extends LocationLink> defs = harness.getDefinitions(params);
 		assertEquals(1, defs.size());
-		assertEquals(new Location(textDocumentId.getUri(), expectedTarget), defs.get(0));
+		assertEquals(new LocationLink(textDocumentId.getUri(), expectedTarget, expectedTarget, highlightRange), defs.get(0));
 	}
 
 	/**
@@ -840,6 +846,10 @@ public class Editor {
 
 	public Position positionOf(String snippet) throws Exception {
 		return positionOf(snippet, snippet);
+	}
+
+	public Range rangeOf(String focusSnippet) throws Exception {
+		return rangeOf(focusSnippet, focusSnippet);
 	}
 
 	/**

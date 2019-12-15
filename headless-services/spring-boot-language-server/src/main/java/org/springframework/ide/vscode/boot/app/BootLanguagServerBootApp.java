@@ -23,7 +23,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.ide.vscode.boot.common.PropertyCompletionFactory;
 import org.springframework.ide.vscode.boot.common.RelaxedNameConfig;
-import org.springframework.ide.vscode.boot.java.handlers.RunningAppProvider;
 import org.springframework.ide.vscode.boot.java.links.DefaultJavaElementLocationProvider;
 import org.springframework.ide.vscode.boot.java.links.EclipseJavaDocumentUriProvider;
 import org.springframework.ide.vscode.boot.java.links.JavaDocumentUriProvider;
@@ -32,6 +31,7 @@ import org.springframework.ide.vscode.boot.java.links.JavaServerElementLocationP
 import org.springframework.ide.vscode.boot.java.links.JdtJavaDocumentUriProvider;
 import org.springframework.ide.vscode.boot.java.links.SourceLinkFactory;
 import org.springframework.ide.vscode.boot.java.links.SourceLinks;
+import org.springframework.ide.vscode.boot.java.livehover.v2.SpringProcessLiveDataProvider;
 import org.springframework.ide.vscode.boot.java.utils.CompilationUnitCache;
 import org.springframework.ide.vscode.boot.java.utils.SymbolCache;
 import org.springframework.ide.vscode.boot.java.utils.SymbolCacheOnDisc;
@@ -40,16 +40,14 @@ import org.springframework.ide.vscode.boot.metadata.AdHocSpringPropertyIndexProv
 import org.springframework.ide.vscode.boot.metadata.ClassReferenceProvider;
 import org.springframework.ide.vscode.boot.metadata.LoggerNameProvider;
 import org.springframework.ide.vscode.boot.metadata.ProjectBasedPropertyIndexProvider;
-import org.springframework.ide.vscode.boot.metadata.PropertyInfo;
+import org.springframework.ide.vscode.boot.metadata.SpringPropertyIndex;
 import org.springframework.ide.vscode.boot.metadata.ValueProviderRegistry;
 import org.springframework.ide.vscode.boot.yaml.completions.ApplicationYamlAssistContext;
 import org.springframework.ide.vscode.commons.languageserver.LanguageServerRunner;
 import org.springframework.ide.vscode.commons.languageserver.util.DocumentEventListenerManager;
 import org.springframework.ide.vscode.commons.languageserver.util.LspClient;
 import org.springframework.ide.vscode.commons.languageserver.util.SimpleLanguageServer;
-import org.springframework.ide.vscode.commons.languageserver.util.SimpleTextDocumentService;
 import org.springframework.ide.vscode.commons.util.FileObserver;
-import org.springframework.ide.vscode.commons.util.FuzzyMap;
 import org.springframework.ide.vscode.commons.util.LogRedirect;
 import org.springframework.ide.vscode.commons.util.text.IDocument;
 import org.springframework.ide.vscode.commons.yaml.ast.YamlASTProvider;
@@ -94,10 +92,9 @@ public class BootLanguagServerBootApp {
 		}
 	}
 
-	@ConditionalOnMissingClass("org.springframework.ide.vscode.languageserver.testharness.LanguageServerHarness")
 	@Bean
-	RunningAppProvider runningAppProvider(SimpleLanguageServer server) {
-		return RunningAppProvider.createDefault(server);
+	SpringProcessLiveDataProvider liveDataProvider() {
+		return new SpringProcessLiveDataProvider();
 	}
 
 	@ConditionalOnMissingClass("org.springframework.ide.vscode.languageserver.testharness.LanguageServerHarness")
@@ -130,10 +127,10 @@ public class BootLanguagServerBootApp {
 		return SourceLinkFactory.createSourceLinks(server, cuCache, params.projectFinder);
 	}
 
-	@Bean CompilationUnitCache cuCache(BootLanguageServerParams params, SimpleTextDocumentService documents) {
-		return new CompilationUnitCache(params.projectFinder, documents, params.projectObserver);
+	@Bean CompilationUnitCache cuCache(SimpleLanguageServer server, BootLanguageServerParams params) {
+		return new CompilationUnitCache(params.projectFinder, server, params.projectObserver);
 	}
-
+	
 	@Bean JavaDocumentUriProvider javaDocumentUriProvider() {
 		switch (LspClient.currentClient()) {
 		case ECLIPSE:
@@ -173,7 +170,7 @@ public class BootLanguagServerBootApp {
 			@Override
 			public YamlAssistContext getGlobalAssistContext(YamlDocument ydoc) {
 				IDocument doc = ydoc.getDocument();
-				FuzzyMap<PropertyInfo> index = params.indexProvider.getIndex(doc);
+				SpringPropertyIndex index = params.indexProvider.getIndex(doc);
 				return ApplicationYamlAssistContext.global(ydoc, index, new PropertyCompletionFactory(), params.typeUtilProvider.getTypeUtil(sourceLinks, doc), RelaxedNameConfig.COMPLETION_DEFAULTS, javaElementLocationProvider);
 			}
 		};

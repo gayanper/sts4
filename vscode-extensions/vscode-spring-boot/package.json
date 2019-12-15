@@ -3,7 +3,7 @@
   "displayName": "Spring Boot Tools",
   "description": "Provides validation and content assist for Spring Boot `application.properties`, `application.yml` properties files. As well as Boot-specific support for `.java` files.",
   "icon": "spring-boot-logo.png",
-  "version": "1.11.0",
+  "version": "1.14.0",
   "publisher": "Pivotal",
   "repository": {
     "type": "git",
@@ -64,14 +64,35 @@
         "configuration": "./properties-support/language-configuration.json"
       }
     ],
+    "commands": [
+      {
+        "command": "vscode-spring-boot.live-hover.connect",
+        "title": "Manage Live Spring Boot Process Connections"
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "Boot-Java Configuration",
       "properties": {
-        "boot-java.boot-hints.on": {
+        "boot-java.live-information.automatic-tracking.on": {
           "type": "boolean",
-          "default": true,
-          "description": "Enable/Disable Spring running Boot application live hints decorators in Java source code"
+          "default": false,
+          "description": "Live Information - Automatic Process Tracking Enabled"
+        },
+        "boot-java.live-information.automatic-tracking.delay": {
+          "type": "number",
+          "default": 5000,
+          "description": "Live Information - Automatic Process Tracking Delay in ms"
+        },
+        "boot-java.live-information.fetch-data.max-retries": {
+          "type": "number",
+          "default": 10,
+          "description": "Live Information - Max number of retries (before giving up)"
+        },
+        "boot-java.live-information.fetch-data.retry-delay-in-seconds": {
+          "type": "number",
+          "default": 3,
+          "description": "Live Information - Delay between retries in seconds"
         },
         "boot-java.scan-java-test-sources.on": {
           "type": "boolean",
@@ -93,9 +114,9 @@
           "description": "Enable/Disable Content Assist in Spring XML Config file editor",
           "default": true
         },
-        "boot-java.support-spring-xml-config.scan-folders-globs": {
+        "boot-java.support-spring-xml-config.scan-folders": {
           "type": "string",
-          "default": "**/src/main/**",
+          "default": "src/main",
           "description": "Scan Spring XML in folders"
         },
         "boot-java.highlight-codelens.on": {
@@ -194,8 +215,8 @@
   },
   "devDependencies": {
     "vsce": "^1.36.1",
-    "typescript": "2.7.2",
-    "@types/node": "^9.4.6",
+    "typescript": "3.6.3",
+    "@types/node": "^12.7.9",
     "vscode": "^1.1.33"
   },
   "extensionDependencies": [

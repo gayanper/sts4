@@ -13,7 +13,6 @@ import { createPreferenceProxy, PreferenceProxy, PreferenceService, PreferenceCo
 
 // tslint:disable:max-line-length
 
-export const HIGHLIGHTS_PREF_NAME = 'boot-java.boot-hints.on';
 export const XML_SUPPORT_PREF_NAME = 'boot-java.support-spring-xml-config.on';
 export const CODELENS_PREF_NAME = 'boot-java.highlight-codelens.on';
 
@@ -21,10 +20,25 @@ export const BootConfigSchema: PreferenceSchema = {
     'type': 'object',
     'title': 'Spring Boot Configuration',
     properties: {
-        'boot-java.boot-hints.on': {
+        'boot-java.live-information.automatic-tracking.on': {
             type: 'boolean',
-            description: 'Enable/Disable Spring running Boot application live hints decorators in Java source code.',
-            default: true
+            description: 'Live Information - Automatic Process Tracking Enabled',
+            default: false
+        },
+        'boot-java.live-information.automatic-tracking.delay': {
+            type: 'number',
+            description: 'Live Information - Automatic Process Tracking Delay in ms',
+            default: 5000
+        },
+        'boot-java.live-information.fetch-data.max-retries': {
+          type: 'number',
+          default: 10,
+          description: 'Live Information - Max number of retries (before giving up)'
+        },
+        'boot-java.live-information.fetch-data.retry-delay-in-seconds': {
+          type: 'number',
+          default: 3,
+          description: 'Live Information - Delay between retries in seconds'
         },
         'boot-java.scan-java-test-sources.on': {
             type: 'boolean',
@@ -46,10 +60,10 @@ export const BootConfigSchema: PreferenceSchema = {
             description: 'Enable/Disable Content Assist in Spring XML Config file editor',
             default: true
         },
-        'boot-java.support-spring-xml-config.scan-folders-globs': {
+        'boot-java.support-spring-xml-config.scan-folders': {
             type: 'string',
             description: 'Scan Spring XML in folders',
-            default: '**/src/main/**'
+            default: 'src/main'
         },
         'boot-java.change-detection.on': {
             type: 'boolean',
@@ -75,12 +89,15 @@ export const BootConfigSchema: PreferenceSchema = {
 };
 
 export interface BootConfiguration {
-    'boot-java.boot-hints.on': boolean;
+    'boot-java.live-information.automatic-tracking.on': boolean;
+    'boot-java.live-information.automatic-tracking.delay': number;
+    'boot-java.live-information.fetch-data.max-retries': number;
+    'boot-java.live-information.fetch-data.retry-delay-in-seconds': number;
     'boot-java.scan-java-test-sources.on': boolean;
     'boot-java.support-spring-xml-config.on': boolean;
     'boot-java.support-spring-xml-config.hyperlinks': boolean;
     'boot-java.support-spring-xml-config.content-assist': boolean;
-    'boot-java.support-spring-xml-config.scan-folders-globs': string;
+    'boot-java.support-spring-xml-config.scan-folders': string;
     'boot-java.change-detection.on': boolean;
     'boot-java.highlight-codelens.on': boolean;
     'spring-boot.ls.javahome': string;

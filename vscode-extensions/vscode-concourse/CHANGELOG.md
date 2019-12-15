@@ -1,3 +1,30 @@
+## 2019-11-21 (4.4.2 RELEASE)
+
+* _(Concourse)_ enhancement: Concourse extension doesn't know about check_every for a resource type
+   ([#382](https://github.com/spring-projects/sts4/issues/382))
+* _(Concourse)_ enhancement: Concourse extension doesn't know about on_error for jobs
+   ([#383](https://github.com/spring-projects/sts4/issues/383))
+* _(Concourse)_ enhancement: complains about old_name in a job
+   ([#388](https://github.com/spring-projects/sts4/issues/388))
+* _(Concourse)_ enhancement: Fix concourse task schema
+   ([#387](https://github.com/spring-projects/sts4/issues/387)) - PR from @z4ce
+* _(Concourse)_ enhancement: Add support for `build_log_retention` attribute in 'Job'
+   ([#389](https://github.com/spring-projects/sts4/issues/389))
+* _(Concourse)_ enhancement: Support validation and completions inside `params` of `resource_type`
+   ([#390](https://github.com/spring-projects/sts4/issues/390))
+* _(Concourse)_ enhancement: Concourse 'aggregate' property is now marked as deprecated
+
+## 2019-10-24 (4.4.1 RELEASE)
+
+* _(Concourse)_ enhancement: added support for `registry-image` resource type.
+   ([#380](https://github.com/spring-projects/sts4/issues/380))
+
+## 2019-09-19 (4.4.0 RELEASE)
+
+* _(Concourse)_ fixed: in_parallel - support both array of steps; and explicit "steps" child ([#345](https://github.com/spring-projects/sts4/issues/345))
+* _(Concourse)_ fixed: support 'inputs' property for type 'PutStep' ([#341](https://github.com/spring-projects/sts4/issues/341))
+* _(VSCode)_ fixed: show error message when manually configured JDK is not there
+
 ## 2019-08-13 (4.3.2 RELEASE)
 
 * _(Concourse)_ fixed: VS Code Extensions missing Cloud Foundry params options ([#330](https://github.com/spring-projects/sts4/issues/330))

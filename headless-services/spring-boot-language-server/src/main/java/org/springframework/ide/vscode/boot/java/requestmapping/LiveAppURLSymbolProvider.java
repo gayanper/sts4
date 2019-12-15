@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2017, 2018 Pivotal, Inc.
+ * Copyright (c) 2017, 2019 Pivotal, Inc.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -20,9 +20,9 @@ import org.eclipse.lsp4j.SymbolInformation;
 import org.eclipse.lsp4j.SymbolKind;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ide.vscode.boot.java.handlers.RunningAppProvider;
-import org.springframework.ide.vscode.commons.boot.app.cli.SpringBootApp;
-import org.springframework.ide.vscode.commons.boot.app.cli.requestmappings.RequestMapping;
+import org.springframework.ide.vscode.boot.java.livehover.v2.LiveRequestMapping;
+import org.springframework.ide.vscode.boot.java.livehover.v2.SpringProcessLiveData;
+import org.springframework.ide.vscode.boot.java.livehover.v2.SpringProcessLiveDataProvider;
 
 /**
  * @author Martin Lippert
@@ -31,24 +31,24 @@ public class LiveAppURLSymbolProvider {
 
 	private static final Logger log = LoggerFactory.getLogger(LiveAppURLSymbolProvider.class);
 
-	private final RunningAppProvider runningAppProvider;
+	private final SpringProcessLiveDataProvider liveDataProvider;
 
-	public LiveAppURLSymbolProvider(RunningAppProvider runningAppProvider) {
-		this.runningAppProvider = runningAppProvider;
+	public LiveAppURLSymbolProvider(SpringProcessLiveDataProvider liveDataProvider) {
+		this.liveDataProvider = liveDataProvider;
 	}
 
 	public List<? extends SymbolInformation> getSymbols(String query) {
 		List<SymbolInformation> result = new ArrayList<>();
 
 		try {
-			SpringBootApp[] runningApps = runningAppProvider.getAllRunningSpringApps().toArray(new SpringBootApp[0]);
-			for (SpringBootApp app : runningApps) {
+			SpringProcessLiveData[] liveData = liveDataProvider.getLatestLiveData();
+			for (SpringProcessLiveData live : liveData) {
 				try {
-					String urlScheme = app.getUrlScheme();
-					String host = app.getHost();
-					String port = app.getPort();
-					String contextPath = app.getContextPath();
-					for (RequestMapping rm : app.getRequestMappings()) {
+					String urlScheme = live.getUrlScheme();
+					String host = live.getHost();
+					String port = live.getPort();
+					String contextPath = live.getContextPath();
+					for (LiveRequestMapping rm : live.getRequestMappings()) {
 						String[] paths = rm.getSplitPath();
 						if (paths==null || paths.length==0) {
 							//Technically, this means the path 'predicate' is unconstrained, meaning any path matches.

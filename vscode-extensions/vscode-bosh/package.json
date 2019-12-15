@@ -3,7 +3,7 @@
   "displayName": "Bosh Editor",
   "description": "Provides validation and content assist for various Bosh configuration files",
   "icon": "icon.png",
-  "version": "1.11.0",
+  "version": "1.14.0",
   "publisher": "Pivotal",
   "repository": {
     "type": "git",
@@ -127,13 +127,13 @@
     "vsce-package": "vsce package"
   },
   "dependencies": {
-    "@pivotal-tools/commons-vscode": "file:../commons-vscode/pivotal-tools-commons-vscode-0.2.2.tgz",
+    "@pivotal-tools/commons-vscode": "file:../commons-vscode/pivotal-tools-commons-vscode-0.2.3.tgz",
     "vscode-languageclient": "5.2.1"
   },
   "devDependencies": {
     "vsce": "^1.36.1",
-    "typescript": "2.6.1",
-    "@types/node": "^7.0.43",
+    "typescript": "3.6.3",
+    "@types/node": "^12.7.9",
     "vscode": "^1.1.33"
   }
 }
