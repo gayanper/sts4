@@ -1,7 +1,9 @@
 package org.spring.tools.boot.java.ls;
 
 import com.google.common.collect.ImmutableList;
+import com.intellij.ide.plugins.PluginManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.extensions.PluginId;
 import org.wso2.lsp4intellij.client.languageserver.serverdefinition.RawCommandServerDefinition;
 
 import java.io.File;
@@ -52,11 +54,11 @@ public final class StsServiceDefinitionBuilder {
 
         try {
             final StringBuilder classPathBuilder = new StringBuilder();
-            final File root = new File(getClass().getResource("/").toURI().getPath());
+            final File root = PluginManager.getPlugin(PluginId.getId("org.spring.tools.boot-java.ls")).getPath();
             final Path javaHomePath = Paths.get(javaHome);
 
             classPathBuilder
-                .append(new File(root.getParent(), "/server/language-server.jar").getPath());
+                .append(new File(root, "lib/server/language-server.jar").getPath());
             if (Prerequisities.isJava8()) {
                 Path toolsJar = javaHomePath.resolve(Paths.get("lib", "tools.jar"));
                 if (Files.exists(toolsJar)) {
@@ -89,7 +91,7 @@ public final class StsServiceDefinitionBuilder {
                         langIds, commandBuilder.build().toArray(new String[0]));
             }
 
-        } catch (URISyntaxException e) {
+        } catch (Exception e) {
             LOGGER.error(e);
             return null;
         }

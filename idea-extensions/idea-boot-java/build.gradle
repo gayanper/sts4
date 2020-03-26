@@ -21,8 +21,8 @@ intellij {
     pluginName 'idea-boot-java'
     downloadSources = false
 
-    version '2018.3'
-    plugins = ['IntelliLang']
+    version 'LATEST-EAP-SNAPSHOT'
+    plugins = ['IntelliLang', 'java']
 }
 
 patchPluginXml {
